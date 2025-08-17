@@ -1,59 +1,78 @@
+// PM2 Configuration for Shodo Ecosystem
+// Usage: pm2 start ecosystem.config.js
+
 module.exports = {
   apps: [
-    {
-      name: 'shodo-backend',
-      cwd: './backend',
-      script: 'src/main.js',
-      instances: 'max',
-      exec_mode: 'cluster',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 8000,
-      },
-      error_file: './logs/backend-error.log',
-      out_file: './logs/backend-out.log',
-      log_file: './logs/backend-combined.log',
-      time: true,
-      watch: false,
-      max_memory_restart: '1G',
-      min_uptime: '10s',
-      max_restarts: 10,
-    },
+    // Frontend (React/Next.js)
     {
       name: 'shodo-frontend',
       cwd: './frontend',
       script: 'npm',
-      args: 'run start',
+      args: 'start',
       env: {
-        NODE_ENV: 'production',
-        PORT: 3000,
+        PORT: 8080,
+        NODE_ENV: 'development'
       },
-      error_file: './logs/frontend-error.log',
-      out_file: './logs/frontend-out.log',
-      log_file: './logs/frontend-combined.log',
-      time: true,
-      watch: false,
+      env_production: {
+        PORT: 8080,
+        NODE_ENV: 'production'
+      },
       max_memory_restart: '500M',
+      error_file: './logs/frontend-error.log',
+      out_file: './logs/frontend-out.log'
     },
+
+    // API Gateway
     {
-      name: 'shodo-ai',
-      cwd: './ai-server',
-      script: 'src/server.js',
-      instances: 1,
+      name: 'shodo-api',
+      cwd: './backend',
+      script: 'python',
+      args: 'simple_server.py',
+      interpreter: 'python3',
       env: {
-        NODE_ENV: 'production',
-        PORT: 8001,
-        INFERENCE_ENGINE: process.env.INFERENCE_ENGINE || 'ollama',
-        MODEL_NAME: process.env.MODEL_NAME || 'llama2:7b-chat',
+        PORT: 8000,
+        PYTHONUNBUFFERED: 1
       },
-      error_file: './logs/ai-error.log',
-      out_file: './logs/ai-out.log',
-      log_file: './logs/ai-combined.log',
-      time: true,
-      watch: false,
-      max_memory_restart: '2G',
-      min_uptime: '30s',
-      max_restarts: 5,
+      max_memory_restart: '1G',
+      error_file: './logs/api-error.log',
+      out_file: './logs/api-out.log'
     },
+
+    // MCP Server - Shopify (example)
+    // {
+    //   name: 'mcp-shopify',
+    //   cwd: './mcp-servers/shopify',
+    //   script: 'npm',
+    //   args: 'start',
+    //   env: {
+    //     PORT: 3001,
+    //     NODE_ENV: 'development'
+    //   },
+    //   max_memory_restart: '300M'
+    // },
+
+    // vLLM Server (if not using Ollama)
+    // {
+    //   name: 'vllm-server',
+    //   script: 'python',
+    //   args: '-m vllm.entrypoints.openai.api_server --model mistralai/Mistral-7B-Instruct-v0.2 --port 8001',
+    //   interpreter: 'python3',
+    //   env: {
+    //     CUDA_VISIBLE_DEVICES: '0'
+    //   },
+    //   max_memory_restart: '8G'
+    // }
   ],
+
+  // Deploy configuration (optional)
+  deploy: {
+    production: {
+      user: 'deploy',
+      host: 'your-server.com',
+      ref: 'origin/main',
+      repo: 'git@github.com:your-org/shodo-ecosystem.git',
+      path: '/opt/shodo-ecosystem',
+      'post-deploy': 'npm install && pm2 reload ecosystem.config.js --env production'
+    }
+  }
 };
