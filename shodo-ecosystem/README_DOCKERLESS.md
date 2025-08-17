@@ -1,330 +1,358 @@
-# 🚀 Shodo Ecosystem - Dockerレス環境構築ガイド
+# Shodo Ecosystem - Docker不要版セットアップガイド
 
-**Ollama（最短起動） → vLLM（高性能）への段階的移行パス**
+## 🚀 クイックスタート（Windows/Mac/Linux）
 
-## 📋 概要
-
-Dockerを使わず、ネイティブ環境で直接実行する軽量構成です。
-- **開発**: `pnpm dev` で全サービス一括起動
-- **本番**: PM2/systemdで安定運用
-- **再現性**: asdf + pnpm lockfileで完全保証
-
-## 🎯 アーキテクチャ
-
-```
-開発環境:
-  Ollama (7B) + pnpm dev → 5分で起動可能
-
-本番環境（段階的移行）:
-  Step 1: Ollama + PM2
-  Step 2: vLLM + PM2
-  Step 3: vLLM + systemd
-```
-
-## 🛠️ クイックスタート
-
-### 1. 自動セットアップ（推奨）
+### 最短経路（3分で起動）
 
 ```bash
-# リポジトリクローン
-git clone https://github.com/your-org/shodo-ecosystem.git
-cd shodo-ecosystem
+# 1. Ollamaインストール（各OS用）
+# Windows: https://ollama.com/download/windows
+# Mac: brew install ollama
+# Linux: curl -fsSL https://ollama.ai/install.sh | sh
 
-# 実行権限付与
-chmod +x setup.sh
+# 2. モデル取得
+ollama pull mistral
 
-# 自動セットアップ（10-15分）
-./setup.sh
+# 3. 依存インストール
+npm install
+cd frontend && npm install --legacy-peer-deps && cd ..
 
-# 開発サーバー起動
-pnpm dev
+# 4. 起動
+npm run dev  # または start-simple.bat (Windows)
 ```
 
-これで http://localhost:3000 にアクセス可能！
+ブラウザで `http://localhost:3000/simple.html` を開く
 
-### 2. 手動セットアップ
+---
 
-#### asdfのインストール
+## 📋 前提条件
+
+### 必須
+- **Node.js 20 LTS** ([ダウンロード](https://nodejs.org/))
+- **Python 3.10+** ([ダウンロード](https://www.python.org/))
+- **Git** ([ダウンロード](https://git-scm.com/))
+
+### 推奨
+- **pnpm** - 高速なパッケージマネージャ
+  ```bash
+  npm install -g pnpm
+  ```
+- **PM2** - プロセス管理
+  ```bash
+  npm install -g pm2
+  ```
+
+### オプション（用途別）
+- **Ollama** - ローカルLLM（推奨）
+- **CUDA** - GPU利用時のみ
+- **asdf** - バージョン管理
+
+---
+
+## 🛠️ セットアップ手順
+
+### 1. 環境変数の設定
 
 ```bash
-# asdfインストール
-git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.13.1
-echo '. "$HOME/.asdf/asdf.sh"' >> ~/.bashrc
-source ~/.bashrc
-
-# プラグイン追加
-asdf plugin add nodejs
-asdf plugin add python
-asdf plugin add postgres
-asdf plugin add redis
-
-# ツールインストール
-asdf install
+cp .env.example .env
+# .envファイルを編集
 ```
 
-#### Ollamaのインストール
+主要な設定項目：
+```env
+# LLM設定（Ollama使用時）
+LLM_PROVIDER=ollama
+OPENAI_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=mistral
 
+# ポート設定
+API_PORT=8000
+FRONTEND_PORT=8080
+```
+
+### 2. Ollama セットアップ（推奨）
+
+#### Windows
+```batch
+setup-ollama.bat
+```
+
+#### Mac/Linux
 ```bash
-# Linux/Mac
+# インストール
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# Windows (WSL2)
-# OllamaのWindows版をインストール後、WSL2から接続
+# 起動
+ollama serve
 
-# モデルダウンロード（4GB程度）
-ollama pull llama2:7b-chat
+# モデル取得
+ollama pull mistral
 ```
 
-#### 依存関係インストール
+### 3. 依存関係のインストール
 
 ```bash
-# pnpmインストール
-npm install -g pnpm@8.14.1
-
-# Node.js依存関係
+# pnpm使用（推奨）
 pnpm install
 
-# 環境変数設定
-cp .env.example .env
+# または npm
+npm install
+cd frontend && npm install --legacy-peer-deps && cd ..
 ```
 
-#### データベース起動
+### 4. サービス起動
 
-```bash
-# PostgreSQL初期化
-initdb -D ~/.asdf/installs/postgres/15.5/data
-pg_ctl start -D ~/.asdf/installs/postgres/15.5/data
-createdb shodo
+#### 開発環境（シンプル）
 
-# Redis起動
-redis-server --daemonize yes
+**Windows:**
+```batch
+start-simple.bat
 ```
 
-## 🚀 起動方法
-
-### 開発環境（最速）
-
+**Mac/Linux:**
 ```bash
-# 全サービス一括起動
-pnpm dev
+# Backend
+cd backend && python3 simple_server.py &
 
-# 個別起動
-pnpm dev:backend   # バックエンド
-pnpm dev:frontend  # フロントエンド
-pnpm dev:ai       # AIサーバー（Ollama）
+# Frontend
+cd frontend/public && python3 -m http.server 3000 &
 ```
 
-### PM2での運用
+#### 本番環境（PM2使用）
+
+**Windows:**
+```batch
+start-production.bat
+```
+
+**Mac/Linux:**
+```bash
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup  # 自動起動設定
+```
+
+---
+
+## 🔧 詳細設定
+
+### LLMプロバイダの選択
+
+#### Option 1: Ollama（推奨）
+- **メリット**: 簡単、CPU対応、プライバシー保護
+- **デメリット**: 速度が遅い場合がある
+
+```env
+LLM_PROVIDER=ollama
+OPENAI_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=mistral  # または qwen2.5:7b, llama3 など
+```
+
+#### Option 2: vLLM（GPU環境）
+- **メリット**: 高速、大規模モデル対応
+- **デメリット**: GPU必須、セットアップ複雑
 
 ```bash
-# PM2インストール
-pnpm add -g pm2
+# インストール
+pip install vllm torch
 
-# サービス起動
-pnpm start  # pm2 start ecosystem.config.js
+# 起動
+python -m vllm.entrypoints.openai.api_server \
+  --model mistralai/Mistral-7B-Instruct-v0.2 \
+  --port 8001
+```
 
-# 状態確認
-pm2 status
+```env
+LLM_PROVIDER=vllm
+OPENAI_BASE_URL=http://localhost:8001/v1
+```
+
+#### Option 3: OpenAI API
+- **メリット**: 最高品質、メンテナンス不要
+- **デメリット**: コスト、インターネット必須
+
+```env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+```
+
+### プロセス管理
+
+#### PM2（推奨）
+
+```bash
+# 起動
+pm2 start ecosystem.config.js
+
+# 監視
+pm2 monit
+
+# ログ確認
 pm2 logs
 
+# 再起動
+pm2 restart all
+
 # 停止
-pnpm stop
+pm2 stop all
 ```
 
-### systemdでの本番運用
+#### systemd（Linux本番環境）
 
 ```bash
-# サービスファイルインストール
+# サービスファイル作成
 sudo cp systemd/*.service /etc/systemd/system/
-sudo systemctl daemon-reload
 
-# サービス有効化・起動
-sudo systemctl enable shodo-backend shodo-frontend shodo-ai
-sudo systemctl start shodo-backend shodo-frontend shodo-ai
-
-# 状態確認
-sudo systemctl status shodo-*
+# 有効化
+sudo systemctl enable --now shodo-backend
+sudo systemctl enable --now shodo-frontend
 ```
 
-## 🔄 Ollama → vLLM移行
-
-### Step 1: vLLMセットアップ
+### バージョン固定（チーム開発）
 
 ```bash
-# Python仮想環境作成
-python -m venv venv
-source venv/bin/activate
+# asdfでバージョン固定
+echo "nodejs 20.12.2" >> .tool-versions
+echo "python 3.11.9" >> .tool-versions
+asdf install
 
-# vLLMインストール（CUDA必須）
-pip install vllm
-
-# モデルダウンロード（AWQ量子化版、5GB）
-huggingface-cli download TheBloke/Llama-2-7B-Chat-AWQ
+# lockファイル厳守
+pnpm install --frozen-lockfile
 ```
 
-### Step 2: 環境変数切り替え
+---
 
-```bash
-# .envを編集
-INFERENCE_ENGINE=vllm
-VLLM_URL=http://localhost:8000
-MODEL_NAME=TheBloke/Llama-2-7B-Chat-AWQ
-```
+## 📊 パフォーマンスチューニング
 
-### Step 3: vLLMサーバー起動
+### メモリ設定
 
-```bash
-# 開発環境
-INFERENCE_ENGINE=vllm pnpm dev
-
-# 本番環境（systemd）
-sudo systemctl stop shodo-ai
-sudo systemctl edit shodo-ai  # ExecStartをvLLM用に変更
-sudo systemctl start shodo-ai
-```
-
-## 📊 パフォーマンス比較
-
-| 構成 | 起動時間 | メモリ使用 | レスポンス | GPU必須 |
-|-----|---------|-----------|-----------|---------|
-| Ollama (7B) | 30秒 | 8GB | 1-2秒 | ❌ |
-| vLLM (7B AWQ) | 1分 | 6GB | 0.2秒 | ✅ |
-| vLLM (70B) | 3分 | 40GB | 0.5秒 | ✅ |
-
-## 🔧 設定ファイル
-
-### .tool-versions (asdf)
-```
-nodejs 20.11.0
-python 3.11.7
-postgres 15.5
-redis 7.2.4
-```
-
-### pnpm-workspace.yaml
-```yaml
-packages:
-  - 'frontend'
-  - 'backend'
-  - 'ai-server'
-```
-
-### ecosystem.config.js (PM2)
 ```javascript
-module.exports = {
-  apps: [
-    {
-      name: 'shodo-backend',
-      script: './backend/src/main.js',
-      instances: 'max',
-      exec_mode: 'cluster'
-    },
-    // ...
-  ]
+// ecosystem.config.js
+{
+  name: 'shodo-frontend',
+  max_memory_restart: '500M',  // メモリ制限
+  // ...
 }
 ```
 
-## 🐛 トラブルシューティング
+### Ollama最適化
 
-### Ollamaが起動しない
+```bash
+# CPUスレッド数を指定
+OLLAMA_NUM_THREADS=8 ollama serve
+
+# 小型モデルを使用（高速化）
+ollama pull phi3:mini
+```
+
+### ポート変更
+
+```env
+# .env
+API_PORT=3001
+FRONTEND_PORT=8081
+```
+
+---
+
+## 🔍 トラブルシューティング
+
+### ポート競合
+
+```bash
+# Windows
+netstat -ano | findstr :8000
+taskkill /PID <PID> /F
+
+# Mac/Linux
+lsof -i :8000
+kill -9 <PID>
+```
+
+### Ollama接続エラー
 
 ```bash
 # サービス再起動
 ollama serve
 
-# ポート確認
-lsof -i :11434
+# API確認
+curl http://localhost:11434/api/tags
 ```
 
-### pnpm devでエラー
+### 依存関係エラー
 
 ```bash
-# node_modules再インストール
-pnpm clean
-pnpm install
-
-# ポート競合確認
-lsof -i :3000
-lsof -i :8000
-lsof -i :8001
+# キャッシュクリア
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
 ```
 
-### PostgreSQL接続エラー
+### Python環境エラー
 
 ```bash
-# 状態確認
-pg_ctl status -D ~/.asdf/installs/postgres/15.5/data
-
-# 再起動
-pg_ctl restart -D ~/.asdf/installs/postgres/15.5/data
+# 仮想環境作成
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-## 📈 スケーリング戦略
+---
 
-```
-開発初期:
-  Ollama + 開発サーバー（pnpm dev）
-  ↓
-小規模本番:
-  Ollama + PM2（クラスタモード）
-  ↓
-中規模本番:
-  vLLM (7B) + PM2 + nginx
-  ↓
-大規模本番:
-  vLLM (70B) + systemd + HAProxy + Redis Cluster
-```
-
-## 🎯 推奨構成
-
-### 最小構成（開発）
-- CPU: 4コア
-- RAM: 8GB
-- Storage: 20GB
-- GPU: 不要
-
-### 推奨構成（Ollama本番）
-- CPU: 8コア
-- RAM: 16GB
-- Storage: 50GB
-- GPU: 不要
-
-### 高性能構成（vLLM本番）
-- CPU: 16コア
-- RAM: 32GB
-- Storage: 100GB
-- GPU: RTX 3090以上
-
-## 🚦 ヘルスチェック
+## 🧹 クリーンアップ
 
 ```bash
-# 全サービス状態確認
-curl http://localhost:8000/health  # Backend
-curl http://localhost:8001/health  # AI Server
-curl http://localhost:3000         # Frontend
+# PM2プロセス削除
+pm2 delete all
+pm2 save
 
-# PM2モニタリング
-pm2 monit
+# ログ削除
+rm -rf logs/*
 
-# systemdログ
-journalctl -u shodo-backend -f
+# 依存関係削除
+rm -rf node_modules
+rm -rf frontend/node_modules
+rm -rf venv
+
+# Ollamaモデル削除
+ollama rm mistral
 ```
 
-## 📝 まとめ
+---
 
-**最短パス**: 
-```bash
-./setup.sh && pnpm dev
-```
+## 📈 本番環境への移行
 
-**本番移行**:
-```bash
-pnpm build && pnpm start
-```
+1. **環境変数の本番設定**
+   ```env
+   NODE_ENV=production
+   LOG_LEVEL=warn
+   ```
 
-**高性能化**:
-```bash
-INFERENCE_ENGINE=vllm pnpm start
-```
+2. **SSL/TLS設定**（nginx推奨）
 
-これで**Docker不要**で、**5分で開発開始**、必要に応じて**段階的に本番環境へ移行**できます！
+3. **監視設定**
+   - PM2 Plus
+   - Datadog
+   - New Relic
+
+4. **バックアップ設定**
+   - データベース定期バックアップ
+   - ログローテーション
+
+5. **セキュリティ強化**
+   - ファイアウォール設定
+   - rate limiting
+   - CORS設定
+
+---
+
+## 📚 参考リンク
+
+- [Ollama Documentation](https://github.com/ollama/ollama)
+- [PM2 Documentation](https://pm2.keymetrics.io/)
+- [vLLM Documentation](https://docs.vllm.ai/)
+- [Node.js Best Practices](https://github.com/goldbergyoni/nodebestpractices)
+
+---
+
+**サポート**: 問題が発生した場合は、Issueを作成してください。
