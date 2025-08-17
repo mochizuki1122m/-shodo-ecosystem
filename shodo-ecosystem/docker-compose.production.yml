@@ -1,0 +1,322 @@
+version: '3.8'
+
+services:
+  # PostgreSQLデータベース
+  postgres:
+    image: postgres:15-alpine
+    container_name: shodo-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shodo}
+      POSTGRES_USER: ${POSTGRES_USER:-shodo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shodo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shodo-network
+
+  # Redisキャッシュ
+  redis:
+    image: redis:7-alpine
+    container_name: shodo-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shodo-network
+
+  # AIサーバー（vLLM or Ollama）
+  ai-server:
+    build:
+      context: ./ai-server
+      dockerfile: Dockerfile
+      args:
+        - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+    container_name: shodo-ai-server
+    restart: always
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal:11434}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODEL_NAME=${MODEL_NAME:-mistral}
+      - MAX_WORKERS=${MAX_WORKERS:-4}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./ai-server/models:/models
+      - ./ai-server/logs:/logs
+    ports:
+      - "8001:8001"
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - shodo-network
+    depends_on:
+      - redis
+
+  # バックエンドAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: shodo-backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-shodo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shodo}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - OPENAI_BASE_URL=http://ai-server:8001/v1
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=production
+      - SENTRY_DSN=${SENTRY_DSN}
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./backend/uploads:/app/uploads
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - shodo-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-server:
+        condition: service_healthy
+
+  # Celeryワーカー
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: shodo-celery-worker
+    restart: always
+    command: celery -A src.tasks.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-shodo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shodo}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./backend/logs:/app/logs
+    networks:
+      - shodo-network
+    depends_on:
+      - postgres
+      - redis
+      - backend
+
+  # Celery Beat（スケジューラー）
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: shodo-celery-beat
+    restart: always
+    command: celery -A src.tasks.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-shodo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shodo}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./backend/celerybeat-schedule.db:/app/celerybeat-schedule.db
+    networks:
+      - shodo-network
+    depends_on:
+      - postgres
+      - redis
+      - celery-worker
+
+  # Flower（Celery監視）
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: shodo-flower
+    restart: always
+    command: celery -A src.tasks.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD}
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - FLOWER_PORT=5555
+    ports:
+      - "5555:5555"
+    networks:
+      - shodo-network
+    depends_on:
+      - redis
+      - celery-worker
+
+  # フロントエンド
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+        - REACT_APP_WS_URL=${REACT_APP_WS_URL:-ws://localhost:8000}
+    container_name: shodo-frontend
+    restart: always
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - shodo-network
+    depends_on:
+      - backend
+
+  # Nginx（リバースプロキシ）
+  nginx:
+    image: nginx:alpine
+    container_name: shodo-nginx
+    restart: always
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - shodo-network
+    depends_on:
+      - frontend
+      - backend
+      - flower
+
+  # Prometheus（メトリクス収集）
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: shodo-prometheus
+    restart: always
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - shodo-network
+    depends_on:
+      - backend
+      - celery-worker
+
+  # Grafana（メトリクス可視化）
+  grafana:
+    image: grafana/grafana:latest
+    container_name: shodo-grafana
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - shodo-network
+    depends_on:
+      - prometheus
+
+  # Loki（ログ収集）
+  loki:
+    image: grafana/loki:latest
+    container_name: shodo-loki
+    restart: always
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - shodo-network
+
+  # Promtail（ログ転送）
+  promtail:
+    image: grafana/promtail:latest
+    container_name: shodo-promtail
+    restart: always
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - ./backend/logs:/app/logs:ro
+      - ./nginx/logs:/nginx/logs:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - shodo-network
+    depends_on:
+      - loki
+
+networks:
+  shodo-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
