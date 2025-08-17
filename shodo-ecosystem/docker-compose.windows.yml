@@ -1,0 +1,104 @@
+version: '3.9'
+
+services:
+  # GPT-OSS推論サーバー（CPUモードで動作）
+  vllm:
+    build: ./ai-server
+    ports:
+      - "8001:8001"
+    environment:
+      - MODEL_NAME=openai/gpt-oss-20b
+      - QUANTIZATION=awq
+      - GPU_MEMORY_UTILIZATION=0.95
+      - MAX_MODEL_LEN=128000
+      # Windows環境ではCPUモードで動作
+      - CUDA_VISIBLE_DEVICES=-1
+    volumes:
+      - ./models:/models
+      - ./cache:/cache
+    networks:
+      - shodo-network
+    # Windows環境ではGPUランタイムを無効化
+    # runtime: nvidia
+    
+  # バックエンドAPI
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://shodo:shodo_pass@postgres:5432/shodo
+      - REDIS_URL=redis://redis:6379
+      - VLLM_URL=http://vllm:8001
+      - JWT_SECRET_KEY=your-secret-key-here-change-in-production
+    depends_on:
+      - postgres
+      - redis
+      - vllm
+    networks:
+      - shodo-network
+    volumes:
+      # Windowsパス対応
+      - ./backend:/app
+    
+  # フロントエンド
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      # Windows環境での監視設定
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    networks:
+      - shodo-network
+    volumes:
+      - ./frontend:/app
+      # node_modulesは除外
+      - /app/node_modules
+    
+  # User-Agent
+  user-agent:
+    build: ./user-agent
+    environment:
+      - PLAYWRIGHT_BROWSERS_PATH=/browsers
+      - API_URL=http://backend:8000
+    volumes:
+      - ./browser-data:/data
+    networks:
+      - shodo-network
+    
+  # データベース
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=shodo
+      - POSTGRES_USER=shodo
+      - POSTGRES_PASSWORD=shodo_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shodo-network
+    ports:
+      - "5432:5432"
+    
+  # キャッシュ
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - shodo-network
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  shodo-network:
+    driver: bridge
