@@ -1,0 +1,40 @@
+[Unit]
+Description=Shodo Ecosystem AI Service
+After=network.target
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=shodo
+Group=shodo
+WorkingDirectory=/opt/shodo-ecosystem/ai-server
+Environment="NODE_ENV=production"
+Environment="PORT=8001"
+Environment="INFERENCE_ENGINE=ollama"
+Environment="MODEL_NAME=llama2:7b-chat"
+Environment="OLLAMA_HOST=http://localhost:11434"
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/shodo/ai.log
+StandardError=append:/var/log/shodo/ai-error.log
+
+# セキュリティ設定
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/shodo-ecosystem/ai-server /var/log/shodo
+
+# リソース制限（AI用に多めに設定）
+CPUQuota=400%
+MemoryLimit=8G
+TasksMax=200
+
+# vLLM移行時は以下に変更
+# Environment="INFERENCE_ENGINE=vllm"
+# Environment="VLLM_URL=http://localhost:8000"
+# ExecStart=/usr/bin/python3 src/vllm_server.py
+
+[Install]
+WantedBy=multi-user.target

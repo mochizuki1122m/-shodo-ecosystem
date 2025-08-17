@@ -1,0 +1,49 @@
+{
+  "name": "shodo-ecosystem",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered SaaS integration platform",
+  "scripts": {
+    "dev": "concurrently -n \"backend,frontend,ai\" -c \"yellow,cyan,magenta\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\" \"pnpm run dev:ai\"",
+    "dev:backend": "cd backend && pnpm run dev",
+    "dev:frontend": "cd frontend && pnpm run dev",
+    "dev:ai": "pnpm run ai:ollama",
+    "ai:ollama": "cd ai-server && pnpm run ollama",
+    "ai:vllm": "cd ai-server && pnpm run vllm",
+    "build": "pnpm run build:frontend && pnpm run build:backend",
+    "build:frontend": "cd frontend && pnpm run build",
+    "build:backend": "cd backend && pnpm run build",
+    "start": "pm2 start ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js",
+    "restart": "pm2 restart ecosystem.config.js",
+    "logs": "pm2 logs",
+    "setup": "pnpm run setup:deps && pnpm run setup:db && pnpm run setup:ollama",
+    "setup:deps": "pnpm install",
+    "setup:db": "pnpm run db:start && pnpm run db:migrate",
+    "setup:ollama": "ollama pull llama2:7b-chat && ollama pull codellama:7b",
+    "setup:vllm": "cd ai-server && pnpm run setup:vllm",
+    "db:start": "pg_ctl start -D ~/.asdf/installs/postgres/15.5/data || true",
+    "db:stop": "pg_ctl stop -D ~/.asdf/installs/postgres/15.5/data",
+    "db:migrate": "cd backend && pnpm run migrate",
+    "redis:start": "redis-server --daemonize yes",
+    "redis:stop": "redis-cli shutdown",
+    "test": "pnpm run test:unit && pnpm run test:integration",
+    "test:unit": "pnpm -r run test:unit",
+    "test:integration": "pnpm -r run test:integration",
+    "clean": "pnpm -r run clean && rm -rf node_modules",
+    "systemd:install": "sudo cp ./systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload",
+    "systemd:enable": "sudo systemctl enable shodo-backend shodo-frontend shodo-ai",
+    "systemd:start": "sudo systemctl start shodo-backend shodo-frontend shodo-ai",
+    "systemd:status": "sudo systemctl status shodo-backend shodo-frontend shodo-ai"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "pm2": "^5.3.0",
+    "@types/node": "^20.11.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.14.1"
+}

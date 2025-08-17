@@ -1,0 +1,32 @@
+[Unit]
+Description=Shodo Ecosystem Backend Service
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=shodo
+Group=shodo
+WorkingDirectory=/opt/shodo-ecosystem/backend
+Environment="NODE_ENV=production"
+Environment="PORT=8000"
+ExecStart=/usr/bin/node src/main.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/shodo/backend.log
+StandardError=append:/var/log/shodo/backend-error.log
+
+# セキュリティ設定
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/shodo-ecosystem/backend /var/log/shodo
+
+# リソース制限
+CPUQuota=200%
+MemoryLimit=2G
+TasksMax=100
+
+[Install]
+WantedBy=multi-user.target
