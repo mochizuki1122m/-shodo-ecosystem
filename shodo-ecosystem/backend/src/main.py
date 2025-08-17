@@ -13,9 +13,10 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # ローカルインポート
-from src.api.v1 import auth, nlp, preview, dashboard, mcp
-from src.services.database import init_db, get_db
-from src.utils.config import settings
+# TODO: APIモジュールを実装後にアンコメント
+# from src.api.v1 import auth, nlp, preview, dashboard, mcp
+# from src.services.database import init_db, get_db
+# from src.utils.config import settings
 
 # ログ設定
 logging.basicConfig(
@@ -30,8 +31,9 @@ async def lifespan(app: FastAPI):
     """アプリケーションのライフサイクル管理"""
     # 起動時
     logger.info("Starting Shodo Ecosystem Backend...")
-    await init_db()
-    logger.info("Database initialized")
+    # TODO: データベース設定後にアンコメント
+    # await init_db()
+    # logger.info("Database initialized")
     
     yield
     
@@ -91,11 +93,12 @@ async def health_check():
     }
 
 # APIルーターの登録
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(nlp.router, prefix="/api/v1/nlp", tags=["NLP"])
-app.include_router(preview.router, prefix="/api/v1/preview", tags=["Preview"])
-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
-app.include_router(mcp.router, prefix="/api/v1/mcp", tags=["MCP"])
+# TODO: APIモジュール実装後にアンコメント
+# app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+# app.include_router(nlp.router, prefix="/api/v1/nlp", tags=["NLP"])
+# app.include_router(preview.router, prefix="/api/v1/preview", tags=["Preview"])
+# app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+# app.include_router(mcp.router, prefix="/api/v1/mcp", tags=["MCP"])
 
 if __name__ == "__main__":
     uvicorn.run(

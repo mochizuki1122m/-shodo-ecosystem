@@ -38,3 +38,50 @@
 2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
 2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
 2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:56:37: Traceback (most recent call last):
+2025-08-17T03:56:37:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:37:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:37: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:37: Traceback (most recent call last):
+2025-08-17T03:56:37:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:37:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:37: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:37: Traceback (most recent call last):
+2025-08-17T03:56:37:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:37:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:37: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:37: Traceback (most recent call last):
+2025-08-17T03:56:37:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:37:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:37: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:37: Traceback (most recent call last):
+2025-08-17T03:56:37:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:37:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:37: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:38: Traceback (most recent call last):
+2025-08-17T03:56:38:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:38:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:38: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:38: Traceback (most recent call last):
+2025-08-17T03:56:38:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:38:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:38: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:38: Traceback (most recent call last):
+2025-08-17T03:56:38:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:38:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:38: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:38: Traceback (most recent call last):
+2025-08-17T03:56:38:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:38:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:38: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:56:39: Traceback (most recent call last):
+2025-08-17T03:56:39:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 16, in <module>
+2025-08-17T03:56:39:     from src.api.v1 import auth, nlp, preview, dashboard, mcp
+2025-08-17T03:56:39: ModuleNotFoundError: No module named 'src'
+2025-08-17T03:58:04: INFO:     Will watch for changes in these directories: ['/workspace/shodo-ecosystem/backend']
+2025-08-17T03:58:04: INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-17T03:58:04: INFO:     Started reloader process [7078] using StatReload
+2025-08-17T03:58:05: INFO:     Started server process [7081]
+2025-08-17T03:58:05: INFO:     Waiting for application startup.
+2025-08-17T03:58:05: 2025-08-17 03:58:05,083 - main - INFO - Starting Shodo Ecosystem Backend...
+2025-08-17T03:58:05: INFO:     Application startup complete.

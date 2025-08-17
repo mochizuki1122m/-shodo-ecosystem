@@ -4,7 +4,7 @@ module.exports = {
       name: 'shodo-backend',
       cwd: './backend',
       script: '/usr/bin/python3',
-      args: 'src/main.py',
+      args: '-m uvicorn src.main:app --host 0.0.0.0 --port 8000',
       instances: 1,
       exec_mode: 'fork',
       env: {
