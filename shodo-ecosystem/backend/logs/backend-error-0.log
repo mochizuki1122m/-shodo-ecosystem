@@ -1,0 +1,40 @@
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'
+2025-08-17T03:49:48: Traceback (most recent call last):
+2025-08-17T03:49:48:   File "/workspace/shodo-ecosystem/backend/src/main.py", line 10, in <module>
+2025-08-17T03:49:48:     from fastapi import FastAPI, Request, HTTPException
+2025-08-17T03:49:48: ModuleNotFoundError: No module named 'fastapi'

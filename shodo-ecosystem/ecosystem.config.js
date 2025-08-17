@@ -3,9 +3,10 @@ module.exports = {
     {
       name: 'shodo-backend',
       cwd: './backend',
-      script: 'src/main.js',
-      instances: 'max',
-      exec_mode: 'cluster',
+      script: '/usr/bin/python3',
+      args: 'src/main.py',
+      instances: 1,
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
         PORT: 8000,

@@ -4,15 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec node src/main.js",
-    "start": "node src/main.js",
-    "build": "tsc",
-    "migrate": "node scripts/migrate.js",
-    "seed": "node scripts/seed.js",
-    "test": "vitest",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.js",
-    "clean": "rm -rf dist node_modules"
+    "dev": "echo 'Backend is Python-based, use Python commands'",
+    "start": "echo 'Backend is Python-based, use Python commands'",
+    "build": "echo 'Backend build completed (Python project)'",
+    "migrate": "echo 'Run Python migration scripts'",
+    "seed": "echo 'Run Python seed scripts'",
+    "test": "echo 'Run Python tests'",
+    "test:unit": "echo 'Run Python unit tests'",
+    "test:integration": "echo 'Run Python integration tests'",
+    "clean": "rm -rf __pycache__ *.pyc"
   },
   "dependencies": {
     "fastify": "^4.25.2",

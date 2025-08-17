@@ -1,0 +1,116 @@
+2025-08-17T03:48:55: 
+2025-08-17T03:48:55: > shodo-ecosystem-frontend@1.0.0 start
+2025-08-17T03:48:55: > react-scripts start
+2025-08-17T03:48:55: 
+2025-08-17T03:48:56: Starting the development server...
+2025-08-17T03:48:56: 
+2025-08-17T03:49:26: 
+2025-08-17T03:49:26: > shodo-ecosystem-frontend@1.0.0 start
+2025-08-17T03:49:26: > react-scripts start
+2025-08-17T03:49:26: 
+2025-08-17T03:49:27: Starting the development server...
+2025-08-17T03:49:27: 
+2025-08-17T03:49:37: Compiled with warnings.
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: [eslint] 
+2025-08-17T03:49:37: src/features/dashboard/Dashboard.tsx
+2025-08-17T03:49:37:   Line 14:3:   'ListItemIcon' is defined but never used           @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 29:10:  'getDetectedServices' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 32:7:   'serviceIcons' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: src/features/nlp/NLPInput.tsx
+2025-08-17T03:49:37:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: src/features/preview/PreviewEditor.tsx
+2025-08-17T03:49:37:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: src/store/authSlice.ts
+2025-08-17T03:49:37:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: Search for the keywords to learn more about each warning.
+2025-08-17T03:49:37: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: WARNING in [eslint] 
+2025-08-17T03:49:37: src/features/dashboard/Dashboard.tsx
+2025-08-17T03:49:37:   Line 14:3:   'ListItemIcon' is defined but never used           @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 29:10:  'getDetectedServices' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 32:7:   'serviceIcons' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: src/features/nlp/NLPInput.tsx
+2025-08-17T03:49:37:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: src/features/preview/PreviewEditor.tsx
+2025-08-17T03:49:37:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: src/store/authSlice.ts
+2025-08-17T03:49:37:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:37: 
+2025-08-17T03:49:37: webpack compiled with 1 warning
+2025-08-17T03:49:37: No issues found.
+2025-08-17T03:49:48: 
+2025-08-17T03:49:48: > shodo-ecosystem-frontend@1.0.0 start
+2025-08-17T03:49:48: > react-scripts start
+2025-08-17T03:49:48: 
+2025-08-17T03:49:49: Starting the development server...
+2025-08-17T03:49:49: 
+2025-08-17T03:49:58: Compiled with warnings.
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: [eslint] 
+2025-08-17T03:49:58: src/features/dashboard/Dashboard.tsx
+2025-08-17T03:49:58:   Line 14:3:   'ListItemIcon' is defined but never used           @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 29:10:  'getDetectedServices' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 32:7:   'serviceIcons' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: src/features/nlp/NLPInput.tsx
+2025-08-17T03:49:58:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: src/features/preview/PreviewEditor.tsx
+2025-08-17T03:49:58:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: src/store/authSlice.ts
+2025-08-17T03:49:58:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: Search for the keywords to learn more about each warning.
+2025-08-17T03:49:58: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: WARNING in [eslint] 
+2025-08-17T03:49:58: src/features/dashboard/Dashboard.tsx
+2025-08-17T03:49:58:   Line 14:3:   'ListItemIcon' is defined but never used           @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 29:10:  'getDetectedServices' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 32:7:   'serviceIcons' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: src/features/nlp/NLPInput.tsx
+2025-08-17T03:49:58:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: src/features/preview/PreviewEditor.tsx
+2025-08-17T03:49:58:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: src/store/authSlice.ts
+2025-08-17T03:49:58:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T03:49:58: 
+2025-08-17T03:49:58: webpack compiled with 1 warning
+2025-08-17T03:49:58: No issues found.

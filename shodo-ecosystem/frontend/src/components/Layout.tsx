@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -22,7 +22,6 @@ import {
   Dashboard as DashboardIcon,
   Psychology as PsychologyIcon,
   Preview as PreviewIcon,
-  AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
@@ -45,7 +44,7 @@ const Layout: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { sidebarOpen } = useSelector((state: RootState) => state.ui);
   const { user } = useSelector((state: RootState) => state.auth);
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleDrawerToggle = () => {
     dispatch(toggleSidebar());
