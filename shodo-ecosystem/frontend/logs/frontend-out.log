@@ -114,3 +114,396 @@
 2025-08-17T03:49:58: 
 2025-08-17T03:49:58: webpack compiled with 1 warning
 2025-08-17T03:49:58: No issues found.
+2025-08-17T04:05:24: Compiling...
+2025-08-17T04:05:26: Compiled with warnings.
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: [eslint] 
+2025-08-17T04:05:26: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:26:   Line 28:10:  'getDetectedServices' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 31:7:   'serviceIcons' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:26:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:26:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: src/store/authSlice.ts
+2025-08-17T04:05:26:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: Search for the keywords to learn more about each warning.
+2025-08-17T04:05:26: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: WARNING in [eslint] 
+2025-08-17T04:05:26: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:26:   Line 28:10:  'getDetectedServices' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 31:7:   'serviceIcons' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:26:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:26:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: src/store/authSlice.ts
+2025-08-17T04:05:26:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:26: 
+2025-08-17T04:05:26: webpack compiled with 1 warning
+2025-08-17T04:05:26: No issues found.
+2025-08-17T04:05:31: Compiling...
+2025-08-17T04:05:32: Failed to compile.
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: [eslint] 
+2025-08-17T04:05:32: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:32: Syntax error: ';' expected (33:7)
+2025-08-17T04:05:32: WARNING in [eslint] 
+2025-08-17T04:05:32: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:32:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:32:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: src/store/authSlice.ts
+2025-08-17T04:05:32:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in ./src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:32: Module build failed (from ../node_modules/.pnpm/babel-loader@8.4.1_@babel+core@7.28.3_webpack@5.101.2/node_modules/babel-loader/lib/index.js):
+2025-08-17T04:05:32: SyntaxError: /workspace/shodo-ecosystem/frontend/src/features/dashboard/Dashboard.tsx: Missing semicolon. (33:7)
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32:   31 | // const serviceIcons: Record<string, React.ReactNode> = {
+2025-08-17T04:05:32:   32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32: > 33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:      |        ^
+2025-08-17T04:05:32:   34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:   35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:   36 | };
+2025-08-17T04:05:32:     at constructor (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:367:19)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.raise (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:6630:19)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.semicolon (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:6926:10)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseExpressionStatement (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:13290:10)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseExpressionStatement (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:9616:26)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementContent (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12904:19)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementContent (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:9532:18)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementLike (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12772:17)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementOrSloppyAnnexBFunctionDeclaration (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12762:17)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseLabeledStatement (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:13283:34)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementContent (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12902:19)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementContent (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:9532:18)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseStatementLike (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12772:17)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseModuleItem (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12749:17)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:13321:36)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseBlockBody (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:13314:10)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseProgram (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12630:10)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parseTopLevel (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:12620:25)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parse (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:14497:10)
+2025-08-17T04:05:32:     at TypeScriptParserMixin.parse (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:10149:18)
+2025-08-17T04:05:32:     at parse (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+parser@7.28.3/node_modules/@babel/parser/lib/index.js:14531:38)
+2025-08-17T04:05:32:     at parser (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+core@7.28.3/node_modules/@babel/core/lib/parser/index.js:41:34)
+2025-08-17T04:05:32:     at parser.next (<anonymous>)
+2025-08-17T04:05:32:     at normalizeFile (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+core@7.28.3/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+2025-08-17T04:05:32:     at normalizeFile.next (<anonymous>)
+2025-08-17T04:05:32:     at run (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+core@7.28.3/node_modules/@babel/core/lib/transformation/index.js:22:50)
+2025-08-17T04:05:32:     at run.next (<anonymous>)
+2025-08-17T04:05:32:     at transform (/workspace/shodo-ecosystem/node_modules/.pnpm/@babel+core@7.28.3/node_modules/@babel/core/lib/transform.js:22:33)
+2025-08-17T04:05:32:     at transform.next (<anonymous>)
+2025-08-17T04:05:32:     at step (/workspace/shodo-ecosystem/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:261:32)
+2025-08-17T04:05:32:     at /workspace/shodo-ecosystem/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:273:13
+2025-08-17T04:05:32:     at async.call.result.err.err (/workspace/shodo-ecosystem/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:223:11)
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in [eslint] 
+2025-08-17T04:05:32: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:32:   Line 33:7:  Parsing error: ';' expected
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: webpack compiled with 2 errors and 1 warning
+2025-08-17T04:05:44: Compiling...
+2025-08-17T04:05:45: Compiled with warnings.
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: [eslint] 
+2025-08-17T04:05:45: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:45:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:45:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:45:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: src/store/authSlice.ts
+2025-08-17T04:05:45:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: Search for the keywords to learn more about each warning.
+2025-08-17T04:05:45: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: WARNING in [eslint] 
+2025-08-17T04:05:45: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:45:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:45:   Line 1:28:  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 14:3:  'Tooltip' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:45:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: src/store/authSlice.ts
+2025-08-17T04:05:45:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:45: 
+2025-08-17T04:05:45: webpack compiled with 1 warning
+2025-08-17T04:05:45: No issues found.
+2025-08-17T04:05:49: Compiling...
+2025-08-17T04:05:50: Compiled with warnings.
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: [eslint] 
+2025-08-17T04:05:50: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:50:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:50:   Line 14:3:  'Tooltip' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:50:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: src/store/authSlice.ts
+2025-08-17T04:05:50:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: Search for the keywords to learn more about each warning.
+2025-08-17T04:05:50: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: WARNING in [eslint] 
+2025-08-17T04:05:50: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:50:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: src/features/nlp/NLPInput.tsx
+2025-08-17T04:05:50:   Line 14:3:  'Tooltip' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:50:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: src/store/authSlice.ts
+2025-08-17T04:05:50:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:50: 
+2025-08-17T04:05:50: webpack compiled with 1 warning
+2025-08-17T04:05:51: No issues found.
+2025-08-17T04:05:54: Compiling...
+2025-08-17T04:05:55: Compiled with warnings.
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: [eslint] 
+2025-08-17T04:05:55: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:55:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:55:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: src/store/authSlice.ts
+2025-08-17T04:05:55:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: Search for the keywords to learn more about each warning.
+2025-08-17T04:05:55: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: WARNING in [eslint] 
+2025-08-17T04:05:55: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:05:55:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:05:55:   Line 13:3:   'Divider' is defined but never used                @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 21:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 26:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 28:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 48:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55:   Line 48:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: src/store/authSlice.ts
+2025-08-17T04:05:55:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:05:55: 
+2025-08-17T04:05:55: webpack compiled with 1 warning
+2025-08-17T04:05:55: No issues found.
+2025-08-17T04:05:59: Compiling...
+2025-08-17T04:06:00: Compiled with warnings.
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: [eslint] 
+2025-08-17T04:06:00: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:00:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:06:00:   Line 20:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 25:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 27:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 47:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 47:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: src/store/authSlice.ts
+2025-08-17T04:06:00:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: Search for the keywords to learn more about each warning.
+2025-08-17T04:06:00: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: WARNING in [eslint] 
+2025-08-17T04:06:00: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:00:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:06:00:   Line 20:11:  'EditIcon' is defined but never used               @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 25:14:  'CompareIcon' is defined but never used            @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 27:10:  'motion' is defined but never used                 @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 47:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00:   Line 47:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: src/store/authSlice.ts
+2025-08-17T04:06:00:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:00: 
+2025-08-17T04:06:00: webpack compiled with 1 warning
+2025-08-17T04:06:00: No issues found.
+2025-08-17T04:06:07: Compiling...
+2025-08-17T04:06:09: Compiled with warnings.
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: [eslint] 
+2025-08-17T04:06:09: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:09:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:06:09:   Line 45:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 45:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: src/store/authSlice.ts
+2025-08-17T04:06:09:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: Search for the keywords to learn more about each warning.
+2025-08-17T04:06:09: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: WARNING in [eslint] 
+2025-08-17T04:06:09: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:09:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: src/features/preview/PreviewEditor.tsx
+2025-08-17T04:06:09:   Line 45:10:  'isEditing' is assigned a value but never used     @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09:   Line 45:21:  'setIsEditing' is assigned a value but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: src/store/authSlice.ts
+2025-08-17T04:06:09:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:09: 
+2025-08-17T04:06:09: webpack compiled with 1 warning
+2025-08-17T04:06:09: No issues found.
+2025-08-17T04:06:16: Compiling...
+2025-08-17T04:06:17: Compiled with warnings.
+2025-08-17T04:06:17: 
+2025-08-17T04:06:17: [eslint] 
+2025-08-17T04:06:17: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:17:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17: 
+2025-08-17T04:06:17: src/store/authSlice.ts
+2025-08-17T04:06:17:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17: 
+2025-08-17T04:06:17: Search for the keywords to learn more about each warning.
+2025-08-17T04:06:17: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:06:17: 
+2025-08-17T04:06:17: WARNING in [eslint] 
+2025-08-17T04:06:17: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:17:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17: 
+2025-08-17T04:06:17: src/store/authSlice.ts
+2025-08-17T04:06:17:   Line 1:41:  'PayloadAction' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:17: 
+2025-08-17T04:06:17: webpack compiled with 1 warning
+2025-08-17T04:06:17: No issues found.
+2025-08-17T04:06:22: Compiling...
+2025-08-17T04:06:23: Compiled with warnings.
+2025-08-17T04:06:23: 
+2025-08-17T04:06:23: [eslint] 
+2025-08-17T04:06:23: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:23:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23: 
+2025-08-17T04:06:23: Search for the keywords to learn more about each warning.
+2025-08-17T04:06:23: To ignore, add // eslint-disable-next-line to the line before.
+2025-08-17T04:06:23: 
+2025-08-17T04:06:23: WARNING in [eslint] 
+2025-08-17T04:06:23: src/features/dashboard/Dashboard.tsx
+2025-08-17T04:06:23:   Line 18:18:  'ShopifyIcon' is defined but never used  @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23:   Line 19:12:  'GmailIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23:   Line 20:14:  'StripeIcon' is defined but never used   @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23:   Line 21:14:  'SlackIcon' is defined but never used    @typescript-eslint/no-unused-vars
+2025-08-17T04:06:23: 
+2025-08-17T04:06:23: webpack compiled with 1 warning
+2025-08-17T04:06:23: No issues found.

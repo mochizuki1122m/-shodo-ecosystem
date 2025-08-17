@@ -7,3 +7,113 @@
 2025-08-17T03:49:49: (node:5427) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
 2025-08-17T03:49:49: (Use `node --trace-deprecation ...` to show where the warning was created)
 2025-08-17T03:49:49: (node:5427) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:32:12
+2025-08-17T04:05:32: TS2695: Left side of comma operator is unused and has no side effects.
+2025-08-17T04:05:32:     30 | // サービスアイコンマッピング
+2025-08-17T04:05:32:     31 | // const serviceIcons: Record<string, React.ReactNode> = {
+2025-08-17T04:05:32:   > 32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:        |            ^^^^^^^^^^^^^^^
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:33:3
+2025-08-17T04:05:32: TS2304: Cannot find name 'gmail'.
+2025-08-17T04:05:32:     31 | // const serviceIcons: Record<string, React.ReactNode> = {
+2025-08-17T04:05:32:     32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:   > 33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:        |   ^^^^^
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:33:8
+2025-08-17T04:05:32: TS1005: ';' expected.
+2025-08-17T04:05:32:     31 | // const serviceIcons: Record<string, React.ReactNode> = {
+2025-08-17T04:05:32:     32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:   > 33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:        |        ^
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:33:10
+2025-08-17T04:05:32: TS2695: Left side of comma operator is unused and has no side effects.
+2025-08-17T04:05:32:     31 | // const serviceIcons: Record<string, React.ReactNode> = {
+2025-08-17T04:05:32:     32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:   > 33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:        |          ^^^^^^^^^^^^^
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:34:3
+2025-08-17T04:05:32: TS2304: Cannot find name 'stripe'.
+2025-08-17T04:05:32:     32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:   > 34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:        |   ^^^^^^
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:34:9
+2025-08-17T04:05:32: TS1005: ';' expected.
+2025-08-17T04:05:32:     32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:   > 34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:        |         ^
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:34:11
+2025-08-17T04:05:32: TS2695: Left side of comma operator is unused and has no side effects.
+2025-08-17T04:05:32:     32 |   shopify: <ShopifyIcon />,
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:   > 34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:        |           ^^^^^^^^^^^^^^
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:35:3
+2025-08-17T04:05:32: TS2304: Cannot find name 'slack'.
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:   > 35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:        |   ^^^^^
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32:     38 | // モックデータ（実際はAPIから取得）
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:35:8
+2025-08-17T04:05:32: TS1005: ';' expected.
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:   > 35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:        |        ^
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32:     38 | // モックデータ（実際はAPIから取得）
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:35:10
+2025-08-17T04:05:32: TS2695: Left side of comma operator is unused and has no side effects.
+2025-08-17T04:05:32:     33 |   gmail: <GmailIcon />,
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:   > 35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:        |          ^^^^^^^^^^^^^
+2025-08-17T04:05:32:     36 | };
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32:     38 | // モックデータ（実際はAPIから取得）
+2025-08-17T04:05:32: 
+2025-08-17T04:05:32: ERROR in src/features/dashboard/Dashboard.tsx:36:1
+2025-08-17T04:05:32: TS1109: Expression expected.
+2025-08-17T04:05:32:     34 |   stripe: <StripeIcon />,
+2025-08-17T04:05:32:     35 |   slack: <SlackIcon />,
+2025-08-17T04:05:32:   > 36 | };
+2025-08-17T04:05:32:        | ^
+2025-08-17T04:05:32:     37 |
+2025-08-17T04:05:32:     38 | // モックデータ（実際はAPIから取得）
+2025-08-17T04:05:32:     39 | const mockServices = [
+2025-08-17T04:05:32: 

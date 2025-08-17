@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { login as apiLogin, logout as apiLogout, getCurrentUser } from '../services/api';
 
 interface User {

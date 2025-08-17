@@ -11,7 +11,6 @@ import {
   LinearProgress,
   List,
   ListItem,
-  ListItemIcon,
   ListItemText,
   Avatar,
 } from '@mui/material';
@@ -26,15 +25,15 @@ import {
   Speed as SpeedIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
-import { getDetectedServices } from '../../services/api';
+// import { getDetectedServices } from '../../services/api';
 
 // サービスアイコンマッピング
-const serviceIcons: Record<string, React.ReactNode> = {
-  shopify: <ShopifyIcon />,
-  gmail: <GmailIcon />,
-  stripe: <StripeIcon />,
-  slack: <SlackIcon />,
-};
+// const serviceIcons: Record<string, React.ReactNode> = {
+//   shopify: <ShopifyIcon />,
+//   gmail: <GmailIcon />,
+//   stripe: <StripeIcon />,
+//   slack: <SlackIcon />,
+// };
 
 // モックデータ（実際はAPIから取得）
 const mockServices = [

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -11,7 +11,6 @@ import {
   Card,
   CardContent,
   IconButton,
-  Tooltip,
   Divider,
   List,
   ListItem,

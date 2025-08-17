@@ -10,7 +10,6 @@ import {
   CardContent,
   Chip,
   IconButton,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -18,14 +17,12 @@ import {
 } from '@mui/material';
 import {
   Preview as PreviewIcon,
-  Edit as EditIcon,
   Undo as UndoIcon,
   Redo as RedoIcon,
   Save as SaveIcon,
   Refresh as RefreshIcon,
-  Compare as CompareIcon,
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+// import { motion } from 'framer-motion';
 
 interface PreviewData {
   id: string;
@@ -45,7 +42,7 @@ interface PreviewData {
 const PreviewEditor: React.FC = () => {
   const [currentPreview, setCurrentPreview] = useState<PreviewData | null>(null);
   const [refinementInput, setRefinementInput] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+  // const [isEditing, setIsEditing] = useState(false);
   const [history, setHistory] = useState<PreviewData[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
