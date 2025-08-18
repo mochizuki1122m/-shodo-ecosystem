@@ -1,0 +1,5 @@
+"""
+コアモジュール
+"""
+
+from .security import *

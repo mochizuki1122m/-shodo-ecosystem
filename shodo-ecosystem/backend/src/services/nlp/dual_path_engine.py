@@ -154,6 +154,44 @@ class DualPathEngine:
             'お得に': {'type': 'price', 'direction': 'decrease', 'default_ratio': 0.7}
         }
     
+    async def analyze_with_rules(self, text: str) -> Dict:
+        """ルールベース解析のみ実行（API互換）"""
+        normalized_text = self._normalize_input(text)
+        result = await self._rule_based_analysis(normalized_text)
+        return {
+            "matches": [{
+                "intent": result["intent"],
+                "confidence": result["confidence"],
+                "service": result.get("service")
+            }],
+            "count": 1 if result["intent"] != "unknown" else 0
+        }
+    
+    async def analyze_with_ai(self, text: str, context: Optional[Dict] = None) -> Optional[Dict]:
+        """AI解析のみ実行（API互換）"""
+        normalized_text = self._normalize_input(text)
+        result = await self._ai_based_analysis(normalized_text, context)
+        return result
+    
+    def calculate_combined_score(self, rule_matches: Dict, ai_analysis: Optional[Dict]) -> float:
+        """ルールベースとAI解析の統合スコアを計算（API互換）"""
+        if not ai_analysis or "error" in ai_analysis:
+            # ルールベースのみ
+            if rule_matches.get("matches"):
+                return rule_matches["matches"][0].get("confidence", 0.0)
+            return 0.0
+        
+        # AI解析結果がある場合
+        ai_confidence = ai_analysis.get("confidence", 0.0)
+        
+        # ルールベースの最大信頼度
+        rule_confidence = 0.0
+        if rule_matches.get("matches"):
+            rule_confidence = rule_matches["matches"][0].get("confidence", 0.0)
+        
+        # 重み付き平均（AI解析を重視）
+        return (rule_confidence * 0.3 + ai_confidence * 0.7)
+    
     async def analyze(self, input_text: str, context: Optional[Dict] = None) -> AnalysisResult:
         """
         入力テキストを二重経路で解析
