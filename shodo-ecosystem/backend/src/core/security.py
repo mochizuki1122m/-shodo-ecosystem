@@ -1,158 +1,241 @@
 """
-セキュリティコアモジュール
+Enterprise Security Configuration
+MUST requirements for production deployment
 """
 
-import jwt
+from typing import List, Optional
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from fastapi import HTTPException, Depends, Request, status
+import secrets
+import hashlib
+import json
+from fastapi import HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
-import hashlib
-import hmac
-import secrets
-import os
+import structlog
 
-# 環境変数から設定を読み込み
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+logger = structlog.get_logger()
 
-# パスワードハッシュ設定
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12  # OWASP recommendation
+)
 
-# HTTPBearer
-security = HTTPBearer()
-
-class TokenData(BaseModel):
-    """トークンデータ"""
-    user_id: str
-    username: str
-    roles: List[str] = []
-    exp: datetime
-
-class JWTManager:
-    """JWT管理クラス"""
+# JWT Configuration
+class JWTConfig:
+    ALGORITHM = "RS256"  # RSA with SHA-256
+    ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour max
+    REFRESH_TOKEN_EXPIRE_DAYS = 7
+    ISSUER = "shodo-ecosystem"
+    AUDIENCE = "shodo-api"
     
-    @staticmethod
-    def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-        """アクセストークンの作成"""
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        return encoded_jwt
+class SecurityHeaders:
+    """Security headers for all responses"""
+    HEADERS = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Content-Security-Policy": (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "font-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        ),
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": (
+            "geolocation=(), "
+            "microphone=(), "
+            "camera=(), "
+            "payment=(), "
+            "usb=(), "
+            "magnetometer=(), "
+            "gyroscope=(), "
+            "accelerometer=()"
+        )
+    }
+
+class RateLimitConfig:
+    """Rate limiting configuration"""
+    DEFAULT_LIMIT = 100  # requests per minute
+    BURST_LIMIT = 150    # burst allowance
     
-    @staticmethod
-    def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> TokenData:
-        """トークンの検証"""
-        token = credentials.credentials
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id: str = payload.get("sub")
-            if user_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Could not validate credentials",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            return TokenData(
-                user_id=user_id,
-                username=payload.get("username"),
-                roles=payload.get("roles", []),
-                exp=datetime.fromtimestamp(payload.get("exp"))
-            )
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        except jwt.JWTError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    ENDPOINT_LIMITS = {
+        "/api/v1/auth/login": 5,
+        "/api/v1/auth/register": 3,
+        "/api/v1/lpr/issue": 10,
+        "/api/v1/nlp/analyze": 30,
+    }
 
 class InputSanitizer:
-    """入力サニタイザー"""
+    """Input sanitization and validation"""
     
     @staticmethod
-    def sanitize_html(text: str) -> str:
-        """HTMLタグの除去"""
-        # 簡易的な実装（本番環境ではbleachを使用推奨）
+    def sanitize_string(value: str, max_length: int = 1000) -> str:
+        """Sanitize string input"""
+        if not value:
+            return ""
+        
+        # Remove null bytes
+        value = value.replace('\x00', '')
+        
+        # Truncate to max length
+        value = value[:max_length]
+        
+        # Remove control characters except newline and tab
+        import string
+        allowed = string.printable + '\n\t'
+        value = ''.join(c for c in value if c in allowed)
+        
+        return value.strip()
+    
+    @staticmethod
+    def sanitize_json(data: dict) -> dict:
+        """Recursively sanitize JSON data"""
+        if not isinstance(data, dict):
+            return {}
+        
+        sanitized = {}
+        for key, value in data.items():
+            if isinstance(value, str):
+                sanitized[key] = InputSanitizer.sanitize_string(value)
+            elif isinstance(value, dict):
+                sanitized[key] = InputSanitizer.sanitize_json(value)
+            elif isinstance(value, list):
+                sanitized[key] = [
+                    InputSanitizer.sanitize_json(item) if isinstance(item, dict)
+                    else InputSanitizer.sanitize_string(item) if isinstance(item, str)
+                    else item
+                    for item in value
+                ]
+            else:
+                sanitized[key] = value
+        
+        return sanitized
+
+class PIIMasking:
+    """PII detection and masking"""
+    
+    PATTERNS = {
+        'email': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+        'phone': r'[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,5}[-\s\.]?[0-9]{1,5}',
+        'credit_card': r'\b(?:\d{4}[-\s]?){3}\d{4}\b',
+        'ssn': r'\b\d{3}-\d{2}-\d{4}\b',
+        'ip_address': r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
+    }
+    
+    @classmethod
+    def mask_pii(cls, text: str) -> str:
+        """Mask PII in text"""
         import re
-        return re.sub('<.*?>', '', text)
+        
+        for pattern_name, pattern in cls.PATTERNS.items():
+            text = re.sub(pattern, f'[REDACTED_{pattern_name.upper()}]', text)
+        
+        return text
+    
+    @classmethod
+    def mask_dict(cls, data: dict, fields_to_mask: List[str] = None) -> dict:
+        """Mask PII in dictionary"""
+        if fields_to_mask is None:
+            fields_to_mask = ['password', 'token', 'secret', 'api_key', 'email', 'phone']
+        
+        masked = {}
+        for key, value in data.items():
+            if any(field in key.lower() for field in fields_to_mask):
+                masked[key] = '[REDACTED]'
+            elif isinstance(value, str):
+                masked[key] = cls.mask_pii(value)
+            elif isinstance(value, dict):
+                masked[key] = cls.mask_dict(value, fields_to_mask)
+            else:
+                masked[key] = value
+        
+        return masked
+
+class SecureTokenGenerator:
+    """Cryptographically secure token generation"""
     
     @staticmethod
-    def sanitize_json(data: Any) -> Any:
-        """JSON データのサニタイズ"""
-        if isinstance(data, str):
-            return InputSanitizer.sanitize_html(data)
-        elif isinstance(data, dict):
-            return {k: InputSanitizer.sanitize_json(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [InputSanitizer.sanitize_json(item) for item in data]
-        return data
+    def generate_token(length: int = 32) -> str:
+        """Generate URL-safe random token"""
+        return secrets.token_urlsafe(length)
     
     @staticmethod
-    def validate_prompt(text: str, max_length: int = 10000) -> str:
-        """プロンプトの検証"""
-        if len(text) > max_length:
-            raise ValueError(f"Text exceeds maximum length of {max_length}")
-        return InputSanitizer.sanitize_html(text)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """パスワードの検証"""
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    """パスワードのハッシュ化"""
-    return pwd_context.hash(password)
-
-def generate_api_key() -> str:
-    """APIキーの生成"""
-    return secrets.token_urlsafe(32)
-
-def verify_api_key(api_key: str, stored_hash: str) -> bool:
-    """APIキーの検証"""
-    return hmac.compare_digest(
-        hashlib.sha256(api_key.encode()).hexdigest(),
-        stored_hash
-    )
-
-# 簡易的なレート制限実装（本番環境ではslowapi推奨）
-class RateLimiter:
-    """レート制限クラス"""
+    def generate_api_key() -> str:
+        """Generate API key with checksum"""
+        prefix = "sk_live_"  # or sk_test_ for test environment
+        token = secrets.token_hex(32)
+        checksum = hashlib.sha256(token.encode()).hexdigest()[:8]
+        return f"{prefix}{token}_{checksum}"
     
-    def __init__(self):
-        self.requests = {}
-    
-    def check_rate_limit(self, client_id: str, limit: int = 60, window: int = 60) -> bool:
-        """レート制限チェック"""
-        current_time = datetime.utcnow()
-        
-        if client_id not in self.requests:
-            self.requests[client_id] = []
-        
-        # 古いリクエストを削除
-        self.requests[client_id] = [
-            req_time for req_time in self.requests[client_id]
-            if (current_time - req_time).seconds < window
-        ]
-        
-        # リクエスト数チェック
-        if len(self.requests[client_id]) >= limit:
+    @staticmethod
+    def verify_api_key(api_key: str) -> bool:
+        """Verify API key checksum"""
+        try:
+            parts = api_key.rsplit('_', 1)
+            if len(parts) != 2:
+                return False
+            
+            key_part = parts[0].split('_', 2)[2]
+            checksum = parts[1]
+            expected_checksum = hashlib.sha256(key_part.encode()).hexdigest()[:8]
+            
+            return secrets.compare_digest(checksum, expected_checksum)
+        except Exception:
             return False
-        
-        # 新しいリクエストを記録
-        self.requests[client_id].append(current_time)
-        return True
 
-# グローバルインスタンス
-limiter = RateLimiter()
+class SessionManager:
+    """Secure session management"""
+    
+    def __init__(self, redis_client):
+        self.redis = redis_client
+        self.session_ttl = 3600  # 1 hour
+    
+    async def create_session(self, user_id: str, metadata: dict = None) -> str:
+        """Create secure session"""
+        session_id = SecureTokenGenerator.generate_token()
+        session_data = {
+            'user_id': user_id,
+            'created_at': datetime.utcnow().isoformat(),
+            'metadata': metadata or {}
+        }
+        
+        await self.redis.setex(
+            f"session:{session_id}",
+            self.session_ttl,
+            json.dumps(session_data)
+        )
+        
+        return session_id
+    
+    async def get_session(self, session_id: str) -> Optional[dict]:
+        """Get session data"""
+        data = await self.redis.get(f"session:{session_id}")
+        if data:
+            return json.loads(data)
+        return None
+    
+    async def invalidate_session(self, session_id: str):
+        """Invalidate session"""
+        await self.redis.delete(f"session:{session_id}")
+
+# Export security utilities
+__all__ = [
+    'pwd_context',
+    'JWTConfig',
+    'SecurityHeaders',
+    'RateLimitConfig',
+    'InputSanitizer',
+    'PIIMasking',
+    'SecureTokenGenerator',
+    'SessionManager'
+]

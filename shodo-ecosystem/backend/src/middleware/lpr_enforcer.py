@@ -1,541 +1,376 @@
 """
-LPR (Limited Proxy Rights) エンフォーサーミドルウェア
-
-すべての代理実行APIリクエストに対してLPRトークンの検証と
-多層防御を適用するミドルウェア。
+LPR Enforcer Middleware
+MUST: Enforce LPR policies on all protected endpoints
 """
 
-import json
 import time
-import hashlib
-import secrets
-from typing import Optional, Dict, Any, Callable
+import json
+import random
+from typing import Optional, Callable
 from datetime import datetime, timezone
-import logging
 
-from fastapi import Request, Response, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Request, Response, HTTPException, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
 import structlog
 
-from ..services.auth.lpr import (
-    lpr_service,
-    DeviceFingerprint,
-    LPRToken,
+from ..services.auth.lpr_service import (
+    LPRService, LPRScope, DeviceFingerprint, get_lpr_service
 )
-from ..utils.config import settings
+from ..core.config import settings
+from ..core.security import PIIMasking
+from ..utils.correlation import set_correlation_id
 
-# 構造化ログ
 logger = structlog.get_logger()
 
-# セキュリティヘッダー
-security = HTTPBearer(auto_error=False)
-
 class LPREnforcerMiddleware(BaseHTTPMiddleware):
-    """LPRエンフォーサーミドルウェア"""
+    """
+    Middleware to enforce LPR policies
     
-    def __init__(self, app, **kwargs):
+    MUST requirements:
+    - Verify token signature and expiration
+    - Check revocation status
+    - Verify device fingerprint
+    - Enforce rate limits
+    - Add human speed jitter
+    - Mask sensitive response data
+    - Audit all operations
+    """
+    
+    # Endpoints that don't require LPR
+    EXEMPT_PATHS = [
+        "/health",
+        "/metrics",
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/refresh",
+        "/api/docs",
+        "/api/redoc",
+        "/openapi.json"
+    ]
+    
+    # Endpoints that require LPR
+    LPR_REQUIRED_PATHS = [
+        "/api/v1/mcp/",
+        "/api/v1/external/"
+    ]
+    
+    def __init__(self, app):
         super().__init__(app)
-        self.protected_paths = [
-            "/api/v1/mcp/",
-            "/api/v1/preview/",
-            "/api/v1/nlp/execute",
-            "/api/v1/proxy/",
-        ]
-        self.bypass_paths = [
-            "/api/v1/lpr/",  # LPR管理API自体はバイパス
-            "/api/v1/auth/",  # 認証APIはバイパス
-            "/health",
-            "/metrics",
-        ]
-        
-        # レート制限用のウィンドウ
-        self.rate_windows: Dict[str, Dict] = {}
+        self.lpr_service: Optional[LPRService] = None
+        self.rate_limits = {}  # In-memory rate limiting
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """リクエストを処理"""
+        """Process request through LPR enforcement"""
         
-        # バイパスパスのチェック
-        if self._should_bypass(request.url.path):
+        # Set correlation ID
+        correlation_id = request.headers.get("X-Correlation-ID", "")
+        if not correlation_id:
+            correlation_id = set_correlation_id(request)
+        
+        # Check if path is exempt
+        if self._is_exempt_path(request.url.path):
             return await call_next(request)
         
-        # 保護パスのチェック
-        if not self._is_protected(request.url.path):
+        # Check if LPR is required
+        if not self._requires_lpr(request.url.path):
+            # Regular authentication is sufficient
             return await call_next(request)
         
-        # 開始時刻
-        start_time = time.time()
+        # Initialize LPR service if needed
+        if self.lpr_service is None:
+            self.lpr_service = await get_lpr_service()
         
-        # 相関IDの生成
-        correlation_id = request.headers.get(
-            "X-Correlation-ID",
-            secrets.token_urlsafe(16)
-        )
-        
-        try:
-            # LPRトークンの取得
-            token_str = await self._extract_token(request)
-            if not token_str:
-                await self._audit_log(
-                    request,
-                    "lpr_missing",
-                    {"path": str(request.url.path)},
-                    correlation_id
-                )
-                return JSONResponse(
-                    status_code=401,
-                    content={"error": "LPR token required"},
-                    headers={"X-Correlation-ID": correlation_id}
-                )
-            
-            # デバイス指紋の抽出
-            device_fingerprint = await self._extract_device_fingerprint(request)
-            
-            # リクエスト情報
-            request_method = request.method
-            request_url = str(request.url)
-            request_origin = request.headers.get("Origin", "")
-            
-            # トークン検証
-            is_valid, token, error = await lpr_service.verify_token(
-                token_str,
-                request_method,
-                request_url,
-                request_origin,
-                device_fingerprint
-            )
-            
-            if not is_valid:
-                await self._audit_log(
-                    request,
-                    "lpr_invalid",
-                    {
-                        "path": str(request.url.path),
-                        "error": error,
-                    },
-                    correlation_id
-                )
-                return JSONResponse(
-                    status_code=403,
-                    content={"error": f"Invalid LPR token: {error}"},
-                    headers={"X-Correlation-ID": correlation_id}
-                )
-            
-            # リクエストにトークン情報を追加
-            request.state.lpr_token = token
-            request.state.correlation_id = correlation_id
-            
-            # Layer 2: デバイス拘束の追加チェック
-            if token.policy.require_device_match:
-                if not await self._verify_device_binding(request, token, device_fingerprint):
-                    await self._audit_log(
-                        request,
-                        "device_binding_failed",
-                        {"jti": token.jti},
-                        correlation_id
-                    )
-                    return JSONResponse(
-                        status_code=403,
-                        content={"error": "Device binding verification failed"},
-                        headers={"X-Correlation-ID": correlation_id}
-                    )
-            
-            # Layer 3: リクエストサイズ制限
-            content_length = request.headers.get("Content-Length")
-            if content_length and int(content_length) > token.policy.max_request_size:
-                await self._audit_log(
-                    request,
-                    "request_size_exceeded",
-                    {
-                        "jti": token.jti,
-                        "size": content_length,
-                        "limit": token.policy.max_request_size,
-                    },
-                    correlation_id
-                )
-                return JSONResponse(
-                    status_code=413,
-                    content={"error": "Request size exceeds limit"},
-                    headers={"X-Correlation-ID": correlation_id}
-                )
-            
-            # Layer 4: 追加のレート制限（ミドルウェアレベル）
-            if not await self._check_rate_limit(request, token):
-                await self._audit_log(
-                    request,
-                    "rate_limit_exceeded",
-                    {"jti": token.jti},
-                    correlation_id
-                )
-                return JSONResponse(
-                    status_code=429,
-                    content={"error": "Rate limit exceeded"},
-                    headers={
-                        "X-Correlation-ID": correlation_id,
-                        "Retry-After": "1",
-                    }
-                )
-            
-            # Layer 4: ヒューマンスピード制御
-            if token.policy.human_speed_jitter:
-                await self._apply_human_speed_delay()
-            
-            # リクエスト処理
-            response = await call_next(request)
-            
-            # Layer 5: レスポンスフィルタリング（データ最小化）
-            response = await self._filter_response(response, token)
-            
-            # 処理時間の記録
-            process_time = time.time() - start_time
-            
-            # 成功の監査ログ
-            await self._audit_log(
-                request,
-                "lpr_request_completed",
-                {
-                    "jti": token.jti,
-                    "path": str(request.url.path),
-                    "method": request_method,
-                    "status": response.status_code,
-                    "process_time": process_time,
-                },
-                correlation_id
-            )
-            
-            # レスポンスヘッダーの追加
-            response.headers["X-Correlation-ID"] = correlation_id
-            response.headers["X-Process-Time"] = str(process_time)
-            
-            return response
-            
-        except Exception as e:
-            logger.error(
-                "LPR enforcement error",
-                error=str(e),
+        # Extract LPR token
+        lpr_token = self._extract_lpr_token(request)
+        if not lpr_token:
+            logger.warning(
+                "LPR token missing for protected endpoint",
+                path=request.url.path,
                 correlation_id=correlation_id
             )
-            
-            await self._audit_log(
-                request,
-                "lpr_enforcement_error",
-                {
-                    "path": str(request.url.path),
-                    "error": str(e),
-                },
-                correlation_id
-            )
-            
             return JSONResponse(
-                status_code=500,
-                content={"error": "Internal server error"},
-                headers={"X-Correlation-ID": correlation_id}
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={
+                    "error": "LPR_TOKEN_REQUIRED",
+                    "message": "LPR token is required for this operation",
+                    "correlation_id": correlation_id
+                }
             )
+        
+        # Extract device fingerprint
+        device_fingerprint = self._extract_device_fingerprint(request)
+        
+        # Create required scope
+        required_scope = LPRScope(
+            method=request.method,
+            url_pattern=request.url.path
+        )
+        
+        # Verify token
+        verification = await self.lpr_service.verify_token(
+            lpr_token,
+            device_fingerprint,
+            required_scope
+        )
+        
+        if not verification.get("valid"):
+            logger.warning(
+                "LPR token verification failed",
+                path=request.url.path,
+                error=verification.get("error"),
+                correlation_id=correlation_id
+            )
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "error": "LPR_VERIFICATION_FAILED",
+                    "message": verification.get("error", "Token verification failed"),
+                    "correlation_id": correlation_id
+                }
+            )
+        
+        # Extract token info
+        jti = verification.get("jti")
+        user_id = verification.get("user_id")
+        service = verification.get("service")
+        
+        # Check rate limits
+        if not await self._check_rate_limit(jti, request):
+            logger.warning(
+                "LPR rate limit exceeded",
+                jti=jti,
+                user_id=user_id,
+                path=request.url.path,
+                correlation_id=correlation_id
+            )
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={
+                    "error": "RATE_LIMIT_EXCEEDED",
+                    "message": "Too many requests",
+                    "correlation_id": correlation_id
+                },
+                headers={
+                    "X-RateLimit-Limit": "100",
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(int(time.time()) + 60)
+                }
+            )
+        
+        # Add human speed jitter (if enabled)
+        if await self._should_add_jitter(jti):
+            jitter_ms = random.randint(50, 200)
+            await self._async_sleep(jitter_ms / 1000)
+        
+        # Store LPR context in request state
+        request.state.lpr_jti = jti
+        request.state.lpr_user_id = user_id
+        request.state.lpr_service = service
+        request.state.correlation_id = correlation_id
+        
+        # Log the operation start
+        start_time = time.time()
+        logger.info(
+            "LPR operation started",
+            jti=jti,
+            user_id=user_id,
+            service=service,
+            method=request.method,
+            path=request.url.path,
+            correlation_id=correlation_id
+        )
+        
+        # Process the request
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            # Log operation failure
+            logger.error(
+                "LPR operation failed",
+                jti=jti,
+                user_id=user_id,
+                service=service,
+                error=str(e),
+                correlation_id=correlation_id,
+                exc_info=True
+            )
+            raise
+        
+        # Calculate operation time
+        operation_time = time.time() - start_time
+        
+        # Mask sensitive response data
+        if response.status_code == 200:
+            response = await self._mask_response(response)
+        
+        # Add LPR headers
+        response.headers["X-LPR-JTI"] = jti
+        response.headers["X-LPR-Service"] = service
+        response.headers["X-Correlation-ID"] = correlation_id
+        response.headers["X-Operation-Time"] = f"{operation_time:.3f}"
+        
+        # Audit log the operation
+        await self._audit_log(
+            jti=jti,
+            user_id=user_id,
+            service=service,
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            operation_time=operation_time,
+            correlation_id=correlation_id
+        )
+        
+        return response
     
-    def _is_protected(self, path: str) -> bool:
-        """保護対象パスか確認"""
-        for protected in self.protected_paths:
-            if path.startswith(protected):
+    def _is_exempt_path(self, path: str) -> bool:
+        """Check if path is exempt from LPR"""
+        for exempt in self.EXEMPT_PATHS:
+            if path.startswith(exempt):
                 return True
         return False
     
-    def _should_bypass(self, path: str) -> bool:
-        """バイパスすべきパスか確認"""
-        for bypass in self.bypass_paths:
-            if path.startswith(bypass):
+    def _requires_lpr(self, path: str) -> bool:
+        """Check if path requires LPR token"""
+        for required in self.LPR_REQUIRED_PATHS:
+            if path.startswith(required):
                 return True
         return False
     
-    async def _extract_token(self, request: Request) -> Optional[str]:
-        """リクエストからLPRトークンを抽出"""
+    def _extract_lpr_token(self, request: Request) -> Optional[str]:
+        """Extract LPR token from request"""
+        # Check Authorization header
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer LPR-"):
+            return auth_header[11:]  # Remove "Bearer LPR-" prefix
         
-        # Authorizationヘッダーから取得
-        auth_header = request.headers.get("Authorization")
-        if auth_header:
-            parts = auth_header.split()
-            if len(parts) == 2:
-                scheme, token = parts
-                if scheme.upper() in ["BEARER", "LPR"]:
-                    return token
-        
-        # カスタムヘッダーから取得
+        # Check X-LPR-Token header
         lpr_header = request.headers.get("X-LPR-Token")
         if lpr_header:
             return lpr_header
         
-        # クエリパラメータから取得（非推奨だが互換性のため）
-        if "lpr_token" in request.query_params:
-            return request.query_params["lpr_token"]
+        # Check query parameter (not recommended for production)
+        if not settings.is_production():
+            return request.query_params.get("lpr_token")
         
         return None
     
-    async def _extract_device_fingerprint(self, request: Request) -> Optional[DeviceFingerprint]:
-        """リクエストからデバイス指紋を抽出"""
-        
-        try:
-            # ヘッダーから基本情報を取得
-            user_agent = request.headers.get("User-Agent", "")
-            accept_language = request.headers.get("Accept-Language", "")
-            
-            # カスタムヘッダーから追加情報を取得
-            fingerprint_data = request.headers.get("X-Device-Fingerprint")
-            
-            if fingerprint_data:
-                # Base64デコードしてJSON解析
-                import base64
-                decoded = base64.b64decode(fingerprint_data).decode('utf-8')
-                fp_dict = json.loads(decoded)
-                
-                return DeviceFingerprint(
-                    user_agent=user_agent,
-                    accept_language=accept_language,
-                    screen_resolution=fp_dict.get("screenResolution"),
-                    timezone=fp_dict.get("timezone"),
-                    platform=fp_dict.get("platform"),
-                    hardware_concurrency=fp_dict.get("hardwareConcurrency"),
-                    memory=fp_dict.get("memory"),
-                    canvas_fp=fp_dict.get("canvasFingerprint"),
-                    webgl_fp=fp_dict.get("webglFingerprint"),
-                    audio_fp=fp_dict.get("audioFingerprint"),
-                )
-            else:
-                # 最小限の指紋
-                return DeviceFingerprint(
-                    user_agent=user_agent,
-                    accept_language=accept_language,
-                )
-        
-        except Exception as e:
-            logger.warning("Failed to extract device fingerprint", error=str(e))
-            return None
+    def _extract_device_fingerprint(self, request: Request) -> DeviceFingerprint:
+        """Extract device fingerprint from request"""
+        return DeviceFingerprint(
+            user_agent=request.headers.get("User-Agent", ""),
+            accept_language=request.headers.get("Accept-Language", ""),
+            screen_resolution=request.headers.get("X-Screen-Resolution"),
+            timezone=request.headers.get("X-Timezone"),
+            canvas_hash=request.headers.get("X-Canvas-Hash")
+        )
     
-    async def _verify_device_binding(
-        self,
-        request: Request,
-        token: LPRToken,
-        fingerprint: Optional[DeviceFingerprint]
-    ) -> bool:
-        """デバイスバインディングを検証"""
-        
-        if not fingerprint:
-            return False
-        
-        # IPアドレスの一貫性チェック（オプション）
-        client_ip = request.client.host if request.client else None
-        if client_ip:
-            # Redis等から前回のIPを取得して比較
-            # ここでは簡略化
-            pass
-        
-        # User-Agentの一貫性チェック
-        stored_hash = token.device_fingerprint_hash
-        current_hash = fingerprint.calculate_hash()
-        
-        if stored_hash != current_hash:
-            # 部分一致を許可する場合の追加ロジック
-            # 例: User-Agentのメジャーバージョンのみ比較
-            return False
-        
-        return True
-    
-    async def _check_rate_limit(self, request: Request, token: LPRToken) -> bool:
-        """レート制限チェック（ミドルウェアレベル）"""
-        
-        # トークンごとのウィンドウを取得
-        window_key = token.jti
+    async def _check_rate_limit(self, jti: str, request: Request) -> bool:
+        """Check rate limits for the token"""
         now = time.time()
+        key = f"{jti}:{request.url.path}"
         
-        if window_key not in self.rate_windows:
-            self.rate_windows[window_key] = {
-                "start": now,
-                "count": 0,
+        if key not in self.rate_limits:
+            self.rate_limits[key] = {
                 "requests": [],
+                "window_start": now
             }
         
-        window = self.rate_windows[window_key]
+        limits = self.rate_limits[key]
         
-        # 1秒ウィンドウのリセット
-        if now - window["start"] > 1.0:
-            window["start"] = now
-            window["count"] = 0
-            window["requests"] = []
-        
-        # バースト制限チェック
-        if window["count"] >= token.policy.rate_limit_burst:
-            return False
-        
-        # RPS制限チェック
-        recent_requests = [
-            req_time for req_time in window["requests"]
-            if now - req_time < 1.0
+        # Clean old requests (outside 60 second window)
+        limits["requests"] = [
+            req_time for req_time in limits["requests"]
+            if now - req_time < 60
         ]
         
-        if len(recent_requests) >= token.policy.rate_limit_rps:
+        # Check limit (100 requests per minute)
+        if len(limits["requests"]) >= 100:
             return False
         
-        # カウント更新
-        window["count"] += 1
-        window["requests"].append(now)
+        # Check burst limit (10 requests per second)
+        recent_requests = [
+            req_time for req_time in limits["requests"]
+            if now - req_time < 1
+        ]
+        if len(recent_requests) >= 10:
+            return False
         
-        # 古いウィンドウのクリーンアップ
-        self._cleanup_old_windows()
+        # Add current request
+        limits["requests"].append(now)
         
         return True
     
-    def _cleanup_old_windows(self):
-        """古いレート制限ウィンドウをクリーンアップ"""
-        now = time.time()
-        expired = [
-            key for key, window in self.rate_windows.items()
-            if now - window["start"] > 300  # 5分以上古い
-        ]
-        
-        for key in expired:
-            del self.rate_windows[key]
+    async def _should_add_jitter(self, jti: str) -> bool:
+        """Determine if human speed jitter should be added"""
+        # Add jitter to 30% of requests in production
+        if settings.is_production():
+            return random.random() < 0.3
+        return False
     
-    async def _apply_human_speed_delay(self):
-        """人間的な速度の遅延を適用"""
-        import random
+    async def _async_sleep(self, seconds: float):
+        """Async sleep for jitter"""
         import asyncio
-        
-        # 50-200msのランダムな遅延
-        delay = random.uniform(0.05, 0.2)
-        await asyncio.sleep(delay)
+        await asyncio.sleep(seconds)
     
-    async def _filter_response(self, response: Response, token: LPRToken) -> Response:
-        """レスポンスフィルタリング（データ最小化）"""
+    async def _mask_response(self, response: Response) -> Response:
+        """Mask sensitive data in response"""
+        # Only mask JSON responses
+        if "application/json" not in response.headers.get("content-type", ""):
+            return response
         
-        # JSONレスポンスの場合のみフィルタリング
-        if response.headers.get("Content-Type", "").startswith("application/json"):
-            try:
-                # レスポンスボディを読み取り
-                body = b""
-                async for chunk in response.body_iterator:
-                    body += chunk
-                
-                # JSON解析
-                data = json.loads(body.decode('utf-8'))
-                
-                # スコープに基づくフィルタリング
-                filtered_data = await self._apply_scope_filter(data, token)
-                
-                # 新しいレスポンスを作成
-                return JSONResponse(
-                    content=filtered_data,
-                    status_code=response.status_code,
-                    headers=dict(response.headers),
-                )
-                
-            except Exception as e:
-                logger.warning("Response filtering failed", error=str(e))
+        # Read response body
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
         
-        return response
-    
-    async def _apply_scope_filter(self, data: Any, token: LPRToken) -> Any:
-        """スコープに基づくデータフィルタリング"""
-        
-        # スコープに基づいて機密フィールドを除去
-        # ここでは簡略化された実装
-        if isinstance(data, dict):
-            # 機密フィールドのリスト
-            sensitive_fields = [
-                "password",
-                "secret",
-                "token",
-                "api_key",
-                "private_key",
-                "ssn",
-                "credit_card",
-            ]
+        try:
+            # Parse JSON
+            data = json.loads(body)
             
-            filtered = {}
-            for key, value in data.items():
-                # 機密フィールドをマスク
-                if any(sensitive in key.lower() for sensitive in sensitive_fields):
-                    filtered[key] = "***FILTERED***"
-                elif isinstance(value, (dict, list)):
-                    filtered[key] = await self._apply_scope_filter(value, token)
-                else:
-                    filtered[key] = value
+            # Mask PII
+            masked_data = PIIMasking.mask_dict(data)
             
-            return filtered
-        
-        elif isinstance(data, list):
-            return [await self._apply_scope_filter(item, token) for item in data]
-        
-        return data
+            # Create new response with masked data
+            return JSONResponse(
+                content=masked_data,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except:
+            # If parsing fails, return original
+            return response
     
     async def _audit_log(
         self,
-        request: Request,
-        event: str,
-        data: Dict[str, Any],
+        jti: str,
+        user_id: str,
+        service: str,
+        method: str,
+        path: str,
+        status_code: int,
+        operation_time: float,
         correlation_id: str
     ):
-        """監査ログ記録"""
+        """Create audit log entry"""
         
-        # クライアント情報
-        client_info = {
-            "ip": request.client.host if request.client else None,
-            "user_agent": request.headers.get("User-Agent"),
-        }
-        
-        # ログエントリ
-        log_entry = {
+        audit_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "event": event,
+            "event_type": "lpr_operation",
+            "jti": jti,
+            "user_id": user_id,
+            "service": service,
+            "method": method,
+            "path": path,
+            "status_code": status_code,
+            "operation_time_ms": operation_time * 1000,
             "correlation_id": correlation_id,
-            "client": client_info,
-            "data": data,
+            "success": 200 <= status_code < 400
         }
         
-        # 構造化ログ出力
-        logger.info(
-            f"AUDIT: {event}",
-            correlation_id=correlation_id,
-            **data
-        )
+        # Log to structured logger
+        logger.info("LPR audit", **audit_entry)
         
-        # TODO: 監査ログをデータベースやSIEMに送信
-
-class LPRRateLimiter:
-    """LPR用のカスタムレート制限"""
-    
-    def __init__(self):
-        self.limits: Dict[str, Dict] = {}
-    
-    async def check_and_update(
-        self,
-        key: str,
-        limit: float,
-        window: float = 1.0
-    ) -> bool:
-        """レート制限をチェックして更新"""
-        
-        now = time.time()
-        
-        if key not in self.limits:
-            self.limits[key] = {
-                "tokens": limit,
-                "last_update": now,
-            }
-        
-        bucket = self.limits[key]
-        
-        # トークンバケットアルゴリズム
-        elapsed = now - bucket["last_update"]
-        bucket["tokens"] = min(
-            limit,
-            bucket["tokens"] + elapsed * limit
-        )
-        bucket["last_update"] = now
-        
-        if bucket["tokens"] >= 1:
-            bucket["tokens"] -= 1
-            return True
-        
-        return False
-
-# グローバルインスタンス
-lpr_rate_limiter = LPRRateLimiter()
+        # Store in audit database/SIEM
+        # await store_audit_log(audit_entry)

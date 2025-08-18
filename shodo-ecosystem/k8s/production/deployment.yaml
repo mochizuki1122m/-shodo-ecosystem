@@ -1,0 +1,429 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shodo
+  labels:
+    name: shodo
+    environment: production
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shodo-backend
+  namespace: shodo
+  labels:
+    app: shodo-backend
+    version: v1
+    tier: backend
+spec:
+  replicas: 4  # MUST: Horizontal scaling for 100 RPS
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # MUST: Zero downtime deployment
+  selector:
+    matchLabels:
+      app: shodo-backend
+  template:
+    metadata:
+      labels:
+        app: shodo-backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: shodo-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z postgres 5432; do echo waiting for db; sleep 2; done']
+      
+      - name: run-migrations
+        image: ghcr.io/shodo/backend:latest
+        command: ['alembic', 'upgrade', 'head']
+        envFrom:
+        - secretRef:
+            name: database-credentials
+      
+      containers:
+      - name: backend
+        image: ghcr.io/shodo/backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: PORT
+          value: "8000"
+        - name: WORKERS
+          value: "4"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: VAULT_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: shodo-vault-config
+              key: VAULT_ADDR
+        
+        envFrom:
+        - secretRef:
+            name: database-credentials
+        - secretRef:
+            name: redis-credentials
+        - secretRef:
+            name: jwt-keys
+        - secretRef:
+            name: api-keys
+        
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+            httpHeaders:
+            - name: User-Agent
+              value: Kubernetes-Health-Check
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8000
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 30
+        
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.cache
+      
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - shodo-backend
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shodo-frontend
+  namespace: shodo
+  labels:
+    app: shodo-frontend
+    version: v1
+    tier: frontend
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: shodo-frontend
+  template:
+    metadata:
+      labels:
+        app: shodo-frontend
+        version: v1
+    spec:
+      serviceAccountName: shodo-frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      
+      containers:
+      - name: frontend
+        image: ghcr.io/shodo/frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        
+        env:
+        - name: REACT_APP_API_URL
+          value: "https://api.shodo.example.com"
+        - name: REACT_APP_ENVIRONMENT
+          value: "production"
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shodo-ai-server
+  namespace: shodo
+  labels:
+    app: shodo-ai-server
+    version: v1
+    tier: ai
+spec:
+  replicas: 2  # GPU nodes
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: shodo-ai-server
+  template:
+    metadata:
+      labels:
+        app: shodo-ai-server
+        version: v1
+    spec:
+      serviceAccountName: shodo-ai
+      
+      nodeSelector:
+        gpu: "true"  # Schedule on GPU nodes
+      
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      containers:
+      - name: vllm
+        image: ghcr.io/shodo/ai-server:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8001
+          name: http
+        
+        env:
+        - name: MODEL_NAME
+          value: "openai/gpt-oss-20b"
+        - name: QUANTIZATION
+          value: "awq"
+        - name: GPU_MEMORY_UTILIZATION
+          value: "0.95"
+        - name: MAX_MODEL_LEN
+          value: "128000"
+        
+        resources:
+          requests:
+            cpu: 4
+            memory: 16Gi
+            nvidia.com/gpu: 1
+          limits:
+            cpu: 8
+            memory: 32Gi
+            nvidia.com/gpu: 1
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 120  # Model loading time
+          periodSeconds: 30
+          timeoutSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /v1/models
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+        - name: shm
+          mountPath: /dev/shm
+      
+      volumes:
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: model-cache-pvc
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: shodo-backend-hpa
+  namespace: shodo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: shodo-backend
+  minReplicas: 4
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "25"  # 25 RPS per pod for 100 RPS total
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shodo-backend-pdb
+  namespace: shodo
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: shodo-backend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shodo-backend
+  namespace: shodo
+  labels:
+    app: shodo-backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: shodo-backend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shodo-frontend
+  namespace: shodo
+  labels:
+    app: shodo-frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: shodo-frontend
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shodo-ai-server
+  namespace: shodo
+  labels:
+    app: shodo-ai-server
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  selector:
+    app: shodo-ai-server
