@@ -1,0 +1,406 @@
+"""
+SaaSコネクタ基底クラス
+すべてのSaaSコネクタが実装すべきインターフェース
+"""
+
+from abc import ABC, abstractmethod
+from typing import Dict, Any, List, Optional, AsyncGenerator
+from datetime import datetime
+from enum import Enum
+import asyncio
+from dataclasses import dataclass
+
+class ConnectorType(str, Enum):
+    """コネクタタイプ"""
+    ECOMMERCE = "ecommerce"
+    PAYMENT = "payment"
+    COMMUNICATION = "communication"
+    CRM = "crm"
+    ANALYTICS = "analytics"
+    STORAGE = "storage"
+
+class AuthMethod(str, Enum):
+    """認証方式"""
+    API_KEY = "api_key"
+    OAUTH2 = "oauth2"
+    BASIC = "basic"
+    BEARER = "bearer"
+    CUSTOM = "custom"
+
+@dataclass
+class ConnectorConfig:
+    """コネクタ設定"""
+    name: str
+    type: ConnectorType
+    auth_method: AuthMethod
+    base_url: str
+    api_version: Optional[str] = None
+    rate_limit: Optional[int] = 100  # requests per minute
+    timeout: int = 30  # seconds
+    retry_count: int = 3
+    retry_delay: int = 1  # seconds
+    
+@dataclass
+class ConnectorCredentials:
+    """認証情報"""
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    custom_headers: Optional[Dict[str, str]] = None
+
+@dataclass
+class ResourceSnapshot:
+    """リソースのスナップショット"""
+    resource_id: str
+    resource_type: str
+    data: Dict[str, Any]
+    metadata: Dict[str, Any]
+    captured_at: datetime
+    checksum: str
+
+@dataclass
+class ChangeSet:
+    """変更セット"""
+    change_id: str
+    resource_id: str
+    resource_type: str
+    changes: List[Dict[str, Any]]
+    created_at: datetime
+    applied_at: Optional[datetime] = None
+    rolled_back_at: Optional[datetime] = None
+
+class BaseSaaSConnector(ABC):
+    """
+    SaaSコネクタの基底クラス
+    すべてのSaaSコネクタはこのクラスを継承して実装する
+    """
+    
+    def __init__(self, config: ConnectorConfig, credentials: ConnectorCredentials):
+        self.config = config
+        self.credentials = credentials
+        self._session = None
+        self._rate_limiter = None
+        self._initialized = False
+        
+    @abstractmethod
+    async def initialize(self) -> bool:
+        """
+        コネクタの初期化
+        認証の確認、接続テストなどを実行
+        """
+        pass
+    
+    @abstractmethod
+    async def authenticate(self) -> bool:
+        """
+        認証処理
+        APIキー検証、OAuth2トークン取得など
+        """
+        pass
+    
+    @abstractmethod
+    async def validate_connection(self) -> bool:
+        """
+        接続の検証
+        APIエンドポイントへの到達性確認
+        """
+        pass
+    
+    # === 読み取り操作 ===
+    
+    @abstractmethod
+    async def list_resources(
+        self,
+        resource_type: str,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        リソース一覧の取得
+        """
+        pass
+    
+    @abstractmethod
+    async def get_resource(
+        self,
+        resource_type: str,
+        resource_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        単一リソースの取得
+        """
+        pass
+    
+    @abstractmethod
+    async def search_resources(
+        self,
+        resource_type: str,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        リソースの検索
+        """
+        pass
+    
+    # === スナップショット・プレビュー ===
+    
+    @abstractmethod
+    async def create_snapshot(
+        self,
+        resource_type: str,
+        resource_id: str
+    ) -> ResourceSnapshot:
+        """
+        リソースのスナップショット作成
+        現在の状態を保存
+        """
+        pass
+    
+    @abstractmethod
+    async def generate_preview(
+        self,
+        snapshot: ResourceSnapshot,
+        changes: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        変更のプレビュー生成
+        実際の変更は行わない
+        """
+        pass
+    
+    @abstractmethod
+    async def validate_changes(
+        self,
+        resource_type: str,
+        resource_id: str,
+        changes: Dict[str, Any]
+    ) -> tuple[bool, List[str]]:
+        """
+        変更の検証
+        返り値: (valid: bool, errors: List[str])
+        """
+        pass
+    
+    # === 変更操作 ===
+    
+    @abstractmethod
+    async def apply_changes(
+        self,
+        resource_type: str,
+        resource_id: str,
+        changes: Dict[str, Any],
+        dry_run: bool = False
+    ) -> ChangeSet:
+        """
+        変更の適用
+        dry_run=Trueの場合はシミュレーションのみ
+        """
+        pass
+    
+    @abstractmethod
+    async def create_resource(
+        self,
+        resource_type: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        新規リソースの作成
+        """
+        pass
+    
+    @abstractmethod
+    async def update_resource(
+        self,
+        resource_type: str,
+        resource_id: str,
+        data: Dict[str, Any],
+        partial: bool = True
+    ) -> Dict[str, Any]:
+        """
+        リソースの更新
+        partial=Trueの場合は部分更新
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_resource(
+        self,
+        resource_type: str,
+        resource_id: str,
+        soft_delete: bool = True
+    ) -> bool:
+        """
+        リソースの削除
+        soft_delete=Trueの場合は論理削除
+        """
+        pass
+    
+    # === ロールバック ===
+    
+    @abstractmethod
+    async def rollback(
+        self,
+        change_set: ChangeSet
+    ) -> bool:
+        """
+        変更のロールバック
+        """
+        pass
+    
+    @abstractmethod
+    async def can_rollback(
+        self,
+        change_set: ChangeSet
+    ) -> bool:
+        """
+        ロールバック可能かチェック
+        """
+        pass
+    
+    # === Webhook ===
+    
+    async def register_webhook(
+        self,
+        event_types: List[str],
+        callback_url: str
+    ) -> str:
+        """
+        Webhookの登録
+        返り値: webhook_id
+        """
+        return ""
+    
+    async def unregister_webhook(
+        self,
+        webhook_id: str
+    ) -> bool:
+        """
+        Webhookの解除
+        """
+        return True
+    
+    async def process_webhook(
+        self,
+        payload: Dict[str, Any],
+        headers: Dict[str, str]
+    ) -> bool:
+        """
+        Webhookペイロードの処理
+        """
+        return True
+    
+    # === バッチ操作 ===
+    
+    async def batch_read(
+        self,
+        operations: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        バッチ読み取り
+        """
+        results = []
+        for op in operations:
+            result = await self.get_resource(
+                op["resource_type"],
+                op["resource_id"]
+            )
+            results.append(result)
+        return results
+    
+    async def batch_write(
+        self,
+        operations: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        バッチ書き込み
+        """
+        results = []
+        for op in operations:
+            if op["action"] == "create":
+                result = await self.create_resource(
+                    op["resource_type"],
+                    op["data"]
+                )
+            elif op["action"] == "update":
+                result = await self.update_resource(
+                    op["resource_type"],
+                    op["resource_id"],
+                    op["data"]
+                )
+            elif op["action"] == "delete":
+                result = await self.delete_resource(
+                    op["resource_type"],
+                    op["resource_id"]
+                )
+            else:
+                result = {"error": f"Unknown action: {op['action']}"}
+            results.append(result)
+        return results
+    
+    # === ストリーミング ===
+    
+    async def stream_resources(
+        self,
+        resource_type: str,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        リソースのストリーミング取得
+        """
+        offset = 0
+        limit = 100
+        while True:
+            resources = await self.list_resources(
+                resource_type,
+                filters,
+                limit,
+                offset
+            )
+            if not resources:
+                break
+            for resource in resources:
+                yield resource
+            offset += limit
+    
+    # === ユーティリティ ===
+    
+    async def get_rate_limit_status(self) -> Dict[str, Any]:
+        """
+        レート制限の状態取得
+        """
+        return {
+            "limit": self.config.rate_limit,
+            "remaining": self.config.rate_limit,
+            "reset_at": datetime.utcnow()
+        }
+    
+    async def get_api_status(self) -> Dict[str, Any]:
+        """
+        API状態の取得
+        """
+        return {
+            "status": "operational",
+            "latency_ms": 0,
+            "timestamp": datetime.utcnow()
+        }
+    
+    async def close(self):
+        """
+        コネクタのクローズ
+        """
+        if self._session:
+            await self._session.close()
+        self._initialized = False
+    
+    def __str__(self) -> str:
+        return f"{self.config.name} Connector ({self.config.type})"
+    
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name='{self.config.name}', type='{self.config.type}')>"

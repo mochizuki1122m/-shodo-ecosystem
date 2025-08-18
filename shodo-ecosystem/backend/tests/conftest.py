@@ -1,252 +1,253 @@
 """
-テスト用フィクスチャとベース設定
+テスト設定とフィクスチャ
 """
 
-import asyncio
-import os
-import sys
-from typing import AsyncGenerator, Generator
-from pathlib import Path
-
 import pytest
-import pytest_asyncio
+import asyncio
+from typing import Generator, AsyncGenerator
+from datetime import datetime
+import os
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
 
-# プロジェクトルートをパスに追加
-sys.path.append(str(Path(__file__).parent.parent))
+# テスト用の環境変数設定
+os.environ["ENVIRONMENT"] = "test"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+os.environ["ENCRYPTION_KEY"] = "test-encryption-key"
 
-from src.models.base import Base, get_db
-from src.models.user import User
-from src.models.api_key import APIKey, ServiceType
 from src.main import app
+from src.core.security import JWTManager, TokenData
+from src.services.database import Base, get_db
 
-# テスト用データベースURL
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+asyncpg://shodo:shodo_pass@localhost:5432/shodo_test"
-)
-
-# テスト用エンジンとセッション
-test_engine = create_async_engine(
-    TEST_DATABASE_URL,
-    poolclass=NullPool,
-    echo=False
-)
-
-TestSessionLocal = async_sessionmaker(
-    test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+# テスト用データベースエンジン
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator:
-    """イベントループのフィクスチャ"""
+def event_loop():
+    """イベントループフィクスチャ"""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """データベースセッションのフィクスチャ"""
-    async with test_engine.begin() as conn:
+@pytest.fixture(scope="function")
+async def async_engine():
+    """非同期データベースエンジン"""
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
-    async with TestSessionLocal() as session:
-        yield session
-        await session.rollback()
+    yield engine
     
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
-@pytest_asyncio.fixture(scope="function")
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """HTTPクライアントのフィクスチャ"""
+@pytest.fixture(scope="function")
+async def async_session(async_engine):
+    """非同期データベースセッション"""
+    async_session_maker = sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
     
-    async def override_get_db():
-        yield db_session
+    async with async_session_maker() as session:
+        yield session
+
+@pytest.fixture(scope="function")
+def sync_engine():
+    """同期データベースエンジン"""
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    
+    Base.metadata.create_all(bind=engine)
+    
+    yield engine
+    
+    engine.dispose()
+
+@pytest.fixture(scope="function")
+def sync_session(sync_engine):
+    """同期データベースセッション"""
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
+    session = SessionLocal()
+    
+    yield session
+    
+    session.close()
+
+@pytest.fixture(scope="function")
+def test_app(sync_session):
+    """テスト用FastAPIアプリケーション"""
+    # データベース依存性をオーバーライド
+    def override_get_db():
+        try:
+            yield sync_session
+        finally:
+            pass
     
     app.dependency_overrides[get_db] = override_get_db
     
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
+    yield app
     
     app.dependency_overrides.clear()
 
-@pytest_asyncio.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """テスト用ユーザーのフィクスチャ"""
-    from src.services.auth.auth_service import hash_password
-    
-    user = User(
-        email="test@example.com",
+@pytest.fixture(scope="function")
+def client(test_app):
+    """同期テストクライアント"""
+    with TestClient(test_app) as c:
+        yield c
+
+@pytest.fixture(scope="function")
+async def async_client(test_app):
+    """非同期テストクライアント"""
+    async with AsyncClient(app=test_app, base_url="http://test") as ac:
+        yield ac
+
+@pytest.fixture(scope="function")
+def auth_headers():
+    """認証ヘッダー"""
+    token_data = TokenData(
+        user_id="test-user-id",
         username="testuser",
-        password_hash=hash_password("Test123!@#"),
-        is_active=True,
-        is_verified=True,
-        role="user"
+        email="test@example.com",
+        roles=["user"],
+        exp=datetime.utcnow()
     )
     
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    
-    return user
-
-@pytest_asyncio.fixture
-async def admin_user(db_session: AsyncSession) -> User:
-    """管理者ユーザーのフィクスチャ"""
-    from src.services.auth.auth_service import hash_password
-    
-    admin = User(
-        email="admin@example.com",
-        username="admin",
-        password_hash=hash_password("Admin123!@#"),
-        is_active=True,
-        is_verified=True,
-        role="admin"
-    )
-    
-    db_session.add(admin)
-    await db_session.commit()
-    await db_session.refresh(admin)
-    
-    return admin
-
-@pytest_asyncio.fixture
-async def auth_headers(client: AsyncClient, test_user: User) -> dict:
-    """認証ヘッダーのフィクスチャ"""
-    response = await client.post(
-        "/api/auth/login",
-        json={
-            "email": "test@example.com",
-            "password": "Test123!@#"
-        }
-    )
-    
-    assert response.status_code == 200
-    token = response.json()["access_token"]
+    token = JWTManager.create_access_token(token_data.dict())
     
     return {"Authorization": f"Bearer {token}"}
 
-@pytest_asyncio.fixture
-async def test_api_key(db_session: AsyncSession, test_user: User) -> APIKey:
-    """テスト用APIキーのフィクスチャ"""
-    from src.services.auth.api_key_manager import APIKeyManager
-    
-    manager = APIKeyManager()
-    encrypted_key = manager._encrypt_key("test_api_key_12345")
-    
-    api_key = APIKey(
-        key_id="test_key_001",
-        service=ServiceType.SHOPIFY,
-        encrypted_key=encrypted_key,
-        user_id=test_user.id,
-        name="Test Shopify Key",
-        status="active"
+@pytest.fixture(scope="function")
+def admin_headers():
+    """管理者認証ヘッダー"""
+    token_data = TokenData(
+        user_id="admin-user-id",
+        username="admin",
+        email="admin@example.com",
+        roles=["admin", "user"],
+        exp=datetime.utcnow()
     )
     
-    db_session.add(api_key)
-    await db_session.commit()
-    await db_session.refresh(api_key)
+    token = JWTManager.create_access_token(token_data.dict())
     
-    return api_key
+    return {"Authorization": f"Bearer {token}"}
 
-@pytest.fixture
-def mock_external_api(monkeypatch):
-    """外部APIのモック"""
-    import httpx
-    
-    class MockResponse:
-        def __init__(self, json_data, status_code=200):
-            self.json_data = json_data
-            self.status_code = status_code
-        
-        def json(self):
-            return self.json_data
-        
-        def raise_for_status(self):
-            if self.status_code >= 400:
-                raise httpx.HTTPStatusError(
-                    message=f"Error {self.status_code}",
-                    request=None,
-                    response=self
-                )
-    
-    async def mock_get(*args, **kwargs):
-        url = args[0] if args else kwargs.get('url', '')
-        
-        if 'shopify' in url:
-            return MockResponse({
-                'shop': {'name': 'Test Shop', 'email': 'shop@test.com'}
-            })
-        elif 'stripe' in url:
-            return MockResponse({
-                'id': 'acct_test123',
-                'email': 'stripe@test.com'
-            })
-        
-        return MockResponse({}, 404)
-    
-    async def mock_post(*args, **kwargs):
-        url = args[0] if args else kwargs.get('url', '')
-        
-        if 'oauth/token' in url:
-            return MockResponse({
-                'access_token': 'mock_access_token',
-                'refresh_token': 'mock_refresh_token',
-                'expires_in': 3600
-            })
-        
-        return MockResponse({}, 404)
-    
-    monkeypatch.setattr("httpx.AsyncClient.get", mock_get)
-    monkeypatch.setattr("httpx.AsyncClient.post", mock_post)
+@pytest.fixture(scope="function")
+def sample_nlp_request():
+    """サンプルNLPリクエスト"""
+    return {
+        "text": "これはテスト用のテキストです。",
+        "text_type": "plain",
+        "analysis_type": "hybrid",
+        "options": {},
+        "context": {}
+    }
 
-@pytest.fixture
-def mock_celery_task(monkeypatch):
-    """Celeryタスクのモック"""
-    
-    class MockTask:
-        def delay(self, *args, **kwargs):
-            return MockAsyncResult()
-        
-        def apply_async(self, *args, **kwargs):
-            return MockAsyncResult()
-    
-    class MockAsyncResult:
-        def __init__(self):
-            self.id = "mock_task_id"
-            self.state = "SUCCESS"
-        
-        def get(self, timeout=None):
-            return {"status": "completed"}
-        
-        @property
-        def ready(self):
-            return True
-        
-        @property
-        def successful(self):
-            return True
-    
-    monkeypatch.setattr(
-        "src.tasks.api_key_tasks.refresh_expiring_keys",
-        MockTask()
-    )
-    monkeypatch.setattr(
-        "src.tasks.api_key_tasks.cleanup_expired_sessions",
-        MockTask()
-    )
+@pytest.fixture(scope="function")
+def sample_preview_request():
+    """サンプルプレビューリクエスト"""
+    return {
+        "source_type": "shopify",
+        "source_id": "product_123",
+        "modifications": {
+            "title": "新しいタイトル",
+            "price": 1000
+        },
+        "preview_type": "html"
+    }
 
-# テスト用環境変数
-@pytest.fixture(autouse=True)
-def set_test_env_vars(monkeypatch):
-    """テスト用環境変数を設定"""
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("JWT_SECRET_KEY", "test_secret_key_12345")
-    monkeypatch.setenv("ENCRYPTION_KEY", "test_encryption_key")
-    monkeypatch.setenv("LLM_PROVIDER", "mock")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379")
+@pytest.fixture(scope="function")
+def sample_user():
+    """サンプルユーザー"""
+    return {
+        "user_id": "test-user-id",
+        "email": "test@example.com",
+        "username": "testuser",
+        "full_name": "Test User",
+        "roles": ["user"],
+        "is_active": True,
+        "is_verified": True,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+@pytest.fixture(scope="function")
+def mock_vllm_response():
+    """モックvLLMレスポンス"""
+    return {
+        "choices": [{
+            "text": "これはAIによる解析結果です。",
+            "finish_reason": "stop"
+        }],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+            "total_tokens": 30
+        }
+    }
+
+@pytest.fixture(scope="function")
+def mock_shopify_product():
+    """モックShopify商品"""
+    return {
+        "id": 123456789,
+        "title": "テスト商品",
+        "body_html": "<p>商品の説明</p>",
+        "vendor": "テストベンダー",
+        "product_type": "テストタイプ",
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+        "tags": "テスト,サンプル",
+        "variants": [{
+            "id": 987654321,
+            "product_id": 123456789,
+            "title": "Default Title",
+            "price": "1000.00",
+            "sku": "TEST-001",
+            "inventory_quantity": 100
+        }],
+        "images": [{
+            "id": 111111111,
+            "product_id": 123456789,
+            "src": "https://example.com/image.jpg",
+            "alt": "テスト画像"
+        }]
+    }
+
+@pytest.fixture(scope="function")
+def mock_stripe_customer():
+    """モックStripe顧客"""
+    return {
+        "id": "cus_test123",
+        "object": "customer",
+        "created": 1640995200,
+        "email": "test@example.com",
+        "name": "Test Customer",
+        "phone": "+81-90-1234-5678",
+        "balance": 0,
+        "currency": "jpy",
+        "delinquent": False,
+        "metadata": {}
+    }
+
+# マーカー定義
+pytest.mark.unit = pytest.mark.unit
+pytest.mark.integration = pytest.mark.integration
+pytest.mark.e2e = pytest.mark.e2e
+pytest.mark.slow = pytest.mark.slow
+pytest.mark.skip_ci = pytest.mark.skip_ci

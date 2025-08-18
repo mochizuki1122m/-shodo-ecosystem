@@ -1,241 +1,299 @@
 """
-自然言語処理APIエンドポイント
+NLP APIエンドポイント
 """
 
-from typing import Dict, List, Optional, Any
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-import httpx
-import os
-import json
-import hashlib
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from typing import List, Optional
+import uuid
 from datetime import datetime
-from .auth import get_current_user
+import asyncio
+
+from ...schemas.nlp import (
+    NLPRequest, NLPResponse, NLPSession,
+    NLPBatchRequest, NLPBatchResponse,
+    RuleDefinition, RuleMatch, AIAnalysis
+)
+from ...schemas.common import BaseResponse, PaginatedResponse, PaginationParams, StatusEnum
+from ...core.security import JWTManager, TokenData, security, limiter, InputSanitizer
+from ...services.nlp.dual_path_engine import DualPathEngine
 
 router = APIRouter()
 
-# AI サーバーのURL
-AI_SERVER_URL = os.getenv("VLLM_URL", "http://localhost:8001")
+# エンジンのインスタンス
+nlp_engine = DualPathEngine()
 
-# キャッシュストレージ（本番環境ではRedisを使用）
-analysis_cache = {}
-analysis_history = {}
-
-class AnalyzeRequest(BaseModel):
-    text: str
-    context: Optional[Dict[str, Any]] = None
-    use_cache: bool = True
-
-class RefineRequest(BaseModel):
-    refinement: str
-    context: Optional[Dict[str, Any]] = None
-
-class AnalysisResponse(BaseModel):
-    id: str
-    intent: str
-    confidence: float
-    entities: Dict[str, Any]
-    service: Optional[str] = None
-    suggestions: List[str] = []
-    requires_confirmation: bool = False
-    cached: bool = False
-    timestamp: datetime
-
-def get_cache_key(text: str, context: Optional[Dict] = None) -> str:
-    """キャッシュキーの生成"""
-    cache_data = f"{text}:{json.dumps(context or {}, sort_keys=True)}"
-    return hashlib.md5(cache_data.encode()).hexdigest()
-
-@router.post("/analyze", response_model=AnalysisResponse)
+@router.post("/analyze", response_model=BaseResponse[NLPResponse])
+@limiter.limit("30/minute")
 async def analyze_text(
-    request: AnalyzeRequest,
-    current_user: dict = Depends(get_current_user)
+    request: NLPRequest,
+    background_tasks: BackgroundTasks,
+    token_data: TokenData = Depends(JWTManager.verify_token)
 ):
-    """テキストの自然言語解析"""
+    """
+    テキスト解析
     
-    # キャッシュチェック
-    cache_key = get_cache_key(request.text, request.context)
-    if request.use_cache and cache_key in analysis_cache:
-        cached_result = analysis_cache[cache_key]
-        cached_result["cached"] = True
-        return AnalysisResponse(**cached_result)
-    
+    ルールベースとAIベースのハイブリッド解析を実行します。
+    """
     try:
-        # AIサーバーに解析リクエスト
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{AI_SERVER_URL}/v1/analyze",
-                json={
-                    "text": request.text,
-                    "context": request.context
-                },
-                timeout=30.0
+        # セッションIDの生成または使用
+        session_id = request.session_id or str(uuid.uuid4())
+        analysis_id = str(uuid.uuid4())
+        
+        # テキストのサニタイズ
+        sanitized_text = InputSanitizer.validate_prompt(request.text)
+        
+        # 解析の実行
+        start_time = datetime.utcnow()
+        
+        # ルールベース解析
+        rule_matches = await nlp_engine.analyze_with_rules(sanitized_text)
+        
+        # AI解析（オプション）
+        ai_analysis = None
+        if request.analysis_type in [AnalysisType.AI_BASED, AnalysisType.HYBRID]:
+            ai_analysis = await nlp_engine.analyze_with_ai(
+                sanitized_text,
+                context=request.context
             )
-            
-            if response.status_code != 200:
-                # フォールバック: 簡易ルールベース解析
-                result = perform_simple_analysis(request.text)
-            else:
-                result = response.json()
         
-        # 結果の整形
-        analysis_id = f"analysis_{datetime.utcnow().timestamp()}"
-        analysis_result = {
-            "id": analysis_id,
-            "intent": result.get("intent", "unknown"),
-            "confidence": result.get("confidence", 0.5),
-            "entities": result.get("entities", {}),
-            "service": result.get("service"),
-            "suggestions": result.get("suggestions", []),
-            "requires_confirmation": result.get("confidence", 0.5) < 0.7,
-            "cached": False,
-            "timestamp": datetime.utcnow()
-        }
+        # 結果の統合
+        combined_score = nlp_engine.calculate_combined_score(
+            rule_matches,
+            ai_analysis
+        )
         
-        # キャッシュに保存
-        analysis_cache[cache_key] = analysis_result
+        processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
         
-        # 履歴に保存
-        user_email = current_user["email"]
-        if user_email not in analysis_history:
-            analysis_history[user_email] = []
-        analysis_history[user_email].append({
-            "id": analysis_id,
-            "text": request.text,
-            "result": analysis_result,
-            "timestamp": datetime.utcnow()
-        })
-        
-        return AnalysisResponse(**analysis_result)
-        
-    except httpx.RequestError as e:
-        # ネットワークエラー時のフォールバック
-        result = perform_simple_analysis(request.text)
-        analysis_id = f"analysis_{datetime.utcnow().timestamp()}"
-        
-        return AnalysisResponse(
-            id=analysis_id,
-            intent=result["intent"],
-            confidence=result["confidence"],
-            entities=result["entities"],
-            service=result.get("service"),
-            suggestions=["AIサーバーが利用できないため、簡易解析を実行しました"],
-            requires_confirmation=True,
-            cached=False,
+        response = NLPResponse(
+            session_id=session_id,
+            analysis_id=analysis_id,
+            status=StatusEnum.COMPLETED,
+            rule_matches=rule_matches,
+            ai_analysis=ai_analysis,
+            combined_score=combined_score,
+            processing_time_ms=processing_time,
             timestamp=datetime.utcnow()
         )
+        
+        # バックグラウンドで統計を更新
+        background_tasks.add_task(
+            update_session_stats,
+            session_id,
+            token_data.user_id,
+            len(sanitized_text)
+        )
+        
+        return BaseResponse(
+            success=True,
+            data=response,
+            request_id=analysis_id
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-@router.post("/refine/{analysis_id}", response_model=AnalysisResponse)
-async def refine_analysis(
-    analysis_id: str,
-    request: RefineRequest,
-    current_user: dict = Depends(get_current_user)
+@router.post("/analyze/batch", response_model=BaseResponse[NLPBatchResponse])
+@limiter.limit("10/minute")
+async def analyze_batch(
+    request: NLPBatchRequest,
+    token_data: TokenData = Depends(JWTManager.verify_token)
 ):
-    """解析結果の精緻化"""
+    """
+    バッチテキスト解析
     
-    # 履歴から元の解析を取得
-    user_email = current_user["email"]
-    user_history = analysis_history.get(user_email, [])
+    複数のテキストを一括で解析します。
+    """
+    batch_id = str(uuid.uuid4())
+    start_time = datetime.utcnow()
     
-    original_analysis = None
-    for item in user_history:
-        if item["id"] == analysis_id:
-            original_analysis = item
-            break
+    results = []
+    failed = 0
     
-    if not original_analysis:
-        raise HTTPException(status_code=404, detail="Analysis not found")
+    # 並列または順次処理
+    if request.parallel:
+        # 並列処理
+        tasks = []
+        for item in request.items:
+            task = analyze_single_item(item)
+            tasks.append(task)
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # エラーカウント
+        for result in results:
+            if isinstance(result, Exception):
+                failed += 1
+    else:
+        # 順次処理
+        for item in request.items:
+            try:
+                result = await analyze_single_item(item)
+                results.append(result)
+            except Exception as e:
+                results.append(None)
+                failed += 1
     
-    # 精緻化テキストを追加して再解析
-    refined_text = f"{original_analysis['text']} {request.refinement}"
+    processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
     
-    return await analyze_text(
-        AnalyzeRequest(
-            text=refined_text,
-            context=request.context,
-            use_cache=False
-        ),
-        current_user
+    response = NLPBatchResponse(
+        batch_id=batch_id,
+        total=len(request.items),
+        completed=len(request.items) - failed,
+        failed=failed,
+        results=[r for r in results if r and not isinstance(r, Exception)],
+        processing_time_ms=processing_time,
+        timestamp=datetime.utcnow()
+    )
+    
+    return BaseResponse(
+        success=True,
+        data=response,
+        request_id=batch_id
     )
 
-@router.get("/history")
-async def get_analysis_history(
-    limit: int = 10,
-    current_user: dict = Depends(get_current_user)
+@router.get("/sessions", response_model=BaseResponse[PaginatedResponse[NLPSession]])
+async def get_sessions(
+    pagination: PaginationParams = Depends(),
+    token_data: TokenData = Depends(JWTManager.verify_token)
 ):
-    """解析履歴の取得"""
-    user_email = current_user["email"]
-    user_history = analysis_history.get(user_email, [])
+    """
+    セッション一覧取得
     
-    # 最新のものから返す
-    return {
-        "history": user_history[-limit:][::-1],
-        "total": len(user_history)
-    }
+    ユーザーのNLPセッション一覧を取得します。
+    """
+    # TODO: データベースから実際のセッションを取得
+    mock_sessions = [
+        NLPSession(
+            session_id=str(uuid.uuid4()),
+            user_id=token_data.user_id,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            analysis_count=5,
+            total_tokens=1500,
+            metadata={}
+        )
+    ]
+    
+    response = PaginatedResponse(
+        items=mock_sessions,
+        total=1,
+        page=pagination.page,
+        per_page=pagination.per_page,
+        pages=1,
+        has_next=False,
+        has_prev=False
+    )
+    
+    return BaseResponse(
+        success=True,
+        data=response
+    )
 
-@router.delete("/cache")
-async def clear_cache(current_user: dict = Depends(get_current_user)):
-    """キャッシュのクリア（管理者のみ）"""
-    # TODO: 管理者権限チェック
-    analysis_cache.clear()
-    return {"message": "Cache cleared successfully"}
+@router.get("/sessions/{session_id}", response_model=BaseResponse[NLPSession])
+async def get_session(
+    session_id: str,
+    token_data: TokenData = Depends(JWTManager.verify_token)
+):
+    """
+    セッション詳細取得
+    
+    特定のNLPセッションの詳細を取得します。
+    """
+    # TODO: データベースから実際のセッションを取得
+    session = NLPSession(
+        session_id=session_id,
+        user_id=token_data.user_id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        analysis_count=5,
+        total_tokens=1500,
+        metadata={}
+    )
+    
+    return BaseResponse(
+        success=True,
+        data=session
+    )
 
-def perform_simple_analysis(text: str) -> Dict:
-    """簡易的なルールベース解析（フォールバック用）"""
-    text_lower = text.lower()
+@router.get("/rules", response_model=BaseResponse[List[RuleDefinition]])
+async def get_rules(
+    category: Optional[str] = None,
+    is_active: Optional[bool] = True,
+    token_data: TokenData = Depends(JWTManager.verify_token)
+):
+    """
+    ルール一覧取得
     
-    # インテント検出
-    if any(word in text_lower for word in ["エクスポート", "出力", "export", "download"]):
-        intent = "export"
-        confidence = 0.8
-    elif any(word in text_lower for word in ["インポート", "取り込み", "import", "upload"]):
-        intent = "import"
-        confidence = 0.8
-    elif any(word in text_lower for word in ["削除", "消去", "delete", "remove"]):
-        intent = "delete"
-        confidence = 0.75
-    elif any(word in text_lower for word in ["作成", "新規", "create", "new"]):
-        intent = "create"
-        confidence = 0.75
-    elif any(word in text_lower for word in ["更新", "変更", "update", "modify"]):
-        intent = "update"
-        confidence = 0.75
-    elif any(word in text_lower for word in ["検索", "探す", "search", "find"]):
-        intent = "search"
-        confidence = 0.7
-    else:
-        intent = "unknown"
-        confidence = 0.3
+    利用可能なルール定義の一覧を取得します。
+    """
+    # TODO: データベースから実際のルールを取得
+    rules = nlp_engine.get_rules(category=category, is_active=is_active)
     
-    # サービス検出
-    service = None
-    if "shopify" in text_lower or "ショッピファイ" in text:
-        service = "shopify"
-    elif "gmail" in text_lower or "メール" in text:
-        service = "gmail"
-    elif "stripe" in text_lower or "決済" in text or "支払" in text:
-        service = "stripe"
-    elif "slack" in text_lower or "スラック" in text:
-        service = "slack"
+    return BaseResponse(
+        success=True,
+        data=rules
+    )
+
+@router.post("/rules", response_model=BaseResponse[RuleDefinition])
+@limiter.limit("10/minute")
+async def create_rule(
+    rule: RuleDefinition,
+    token_data: TokenData = Depends(JWTManager.verify_token)
+):
+    """
+    ルール作成
     
-    # エンティティ抽出
-    entities = {}
+    新しいルール定義を作成します（管理者のみ）。
+    """
+    if "admin" not in token_data.roles:
+        raise HTTPException(status_code=403, detail="Admin access required")
     
-    # 数値検出
-    import re
-    numbers = re.findall(r'\d+', text)
-    if numbers:
-        entities["numbers"] = numbers
+    # TODO: データベースにルールを保存
+    created_rule = nlp_engine.add_rule(rule)
     
-    # 日付検出
-    dates = re.findall(r'\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?', text)
-    if dates:
-        entities["dates"] = dates
+    return BaseResponse(
+        success=True,
+        data=created_rule
+    )
+
+# ヘルパー関数
+async def analyze_single_item(request: NLPRequest) -> NLPResponse:
+    """単一アイテムの解析"""
+    session_id = request.session_id or str(uuid.uuid4())
+    analysis_id = str(uuid.uuid4())
     
-    return {
-        "intent": intent,
-        "confidence": confidence,
-        "entities": entities,
-        "service": service,
-        "suggestions": [] if confidence > 0.7 else ["もう少し詳しく教えてください"]
-    }
+    # サニタイズ
+    sanitized_text = InputSanitizer.validate_prompt(request.text)
+    
+    # 解析実行
+    rule_matches = await nlp_engine.analyze_with_rules(sanitized_text)
+    ai_analysis = None
+    
+    if request.analysis_type in [AnalysisType.AI_BASED, AnalysisType.HYBRID]:
+        ai_analysis = await nlp_engine.analyze_with_ai(
+            sanitized_text,
+            context=request.context
+        )
+    
+    combined_score = nlp_engine.calculate_combined_score(
+        rule_matches,
+        ai_analysis
+    )
+    
+    return NLPResponse(
+        session_id=session_id,
+        analysis_id=analysis_id,
+        status=StatusEnum.COMPLETED,
+        rule_matches=rule_matches,
+        ai_analysis=ai_analysis,
+        combined_score=combined_score,
+        processing_time_ms=0,
+        timestamp=datetime.utcnow()
+    )
+
+async def update_session_stats(session_id: str, user_id: str, text_length: int):
+    """セッション統計の更新"""
+    # TODO: データベースでセッション統計を更新
+    pass
