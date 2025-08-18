@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: lpr-postgres
+    environment:
+      POSTGRES_USER: shodo
+      POSTGRES_PASSWORD: shodo_pass
+      POSTGRES_DB: shodo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - lpr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shodo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: lpr-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - lpr-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LPR Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lpr-backend
+    environment:
+      DATABASE_URL: postgresql://shodo:shodo_pass@postgres:5432/shodo
+      REDIS_URL: redis://redis:6379/0
+      LPR_ENABLED: "true"
+      PLAYWRIGHT_HEADLESS: "false"
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - playwright_cache:/home/pwuser/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lpr-network
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        python src/main.py
+      "
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lpr-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_LPR_ENABLED: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - lpr-network
+    depends_on:
+      - backend
+
+  # Playwright Browser (for visible login)
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.41.0-focal
+    container_name: lpr-playwright
+    environment:
+      DISPLAY: ":99"
+    volumes:
+      - ./backend:/app
+      - playwright_cache:/home/pwuser/.cache
+    networks:
+      - lpr-network
+    command: >
+      sh -c "
+        Xvfb :99 -screen 0 1280x720x24 &
+        tail -f /dev/null
+      "
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: lpr-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - lpr-network
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lpr-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    networks:
+      - lpr-network
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lpr-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: redis-datasource
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - lpr-network
+
+  # Log Aggregation - Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: lpr-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - lpr-network
+
+  # Log Shipper - Promtail
+  promtail:
+    image: grafana/promtail:latest
+    container_name: lpr-promtail
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - lpr-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  playwright_cache:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  lpr-network:
+    driver: bridge
