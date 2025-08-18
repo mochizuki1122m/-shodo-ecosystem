@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -24,7 +24,9 @@ import {
   Save as SaveIcon,
   Refresh as RefreshIcon,
   Compare as CompareIcon,
+  Security as SecurityIcon,
 } from '@mui/icons-material';
+import { sanitizePreview, sanitizeCSS } from '../../utils/sanitizer';
 import { motion } from 'framer-motion';
 
 interface PreviewData {
@@ -257,10 +259,18 @@ const PreviewEditor: React.FC = () => {
                     bgcolor: 'background.default',
                     minHeight: 400,
                     position: 'relative',
+                    border: '2px solid #4caf50',
                   }}
                 >
-                  <style dangerouslySetInnerHTML={{ __html: currentPreview.css }} />
-                  <div dangerouslySetInnerHTML={{ __html: currentPreview.html }} />
+                  <Chip
+                    icon={<SecurityIcon />}
+                    label="サニタイズ済み"
+                    color="success"
+                    size="small"
+                    sx={{ position: 'absolute', top: 8, right: 8 }}
+                  />
+                  <style dangerouslySetInnerHTML={{ __html: sanitizeCSS(currentPreview.css) }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizePreview(currentPreview.html) }} />
                 </Paper>
               </CardContent>
             </Card>

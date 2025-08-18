@@ -1,93 +1,202 @@
 version: '3.9'
 
 services:
-  # GPT-OSS推論サーバー
+  # Nginxリバースプロキシ（セキュリティゲートウェイ）
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - shodo-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+  # GPT-OSS推論サーバー（内部ネットワークのみ）
   vllm:
     build: ./ai-server
-    ports:
-      - "8001:8001"
+    # ポート公開を削除（内部ネットワークのみ）
+    # ports:
+    #   - "8001:8001"
     environment:
-      - MODEL_NAME=openai/gpt-oss-20b
-      - QUANTIZATION=awq
-      - GPU_MEMORY_UTILIZATION=0.95
-      - MAX_MODEL_LEN=128000
+      - MODEL_NAME=${MODEL_NAME:-openai/gpt-oss-20b}
+      - QUANTIZATION=${QUANTIZATION:-awq}
+      - GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.95}
+      - MAX_MODEL_LEN=${MAX_MODEL_LEN:-128000}
     volumes:
       - ./models:/models
       - ./cache:/cache
     networks:
-      - shodo-network
+      - shodo-internal  # 内部ネットワークのみ
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+        reservations:
+          memory: 8G
     
   # バックエンドAPI
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    # ポート公開を削除（Nginx経由のみ）
+    # ports:
+    #   - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://shodo:shodo_pass@postgres:5432/shodo
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL:-postgresql://shodo:shodo_pass@postgres:5432/shodo}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - VLLM_URL=http://vllm:8001
-      - JWT_SECRET_KEY=your-secret-key-here-change-in-production
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-change-this-in-production}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
     depends_on:
-      - postgres
-      - redis
-      - vllm
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vllm:
+        condition: service_healthy
     networks:
       - shodo-network
+      - shodo-internal
     volumes:
       - ./backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    restart: unless-stopped
     
   # フロントエンド
   frontend:
     build: ./frontend
-    ports:
-      - "3000:3000"
+    # ポート公開を削除（Nginx経由のみ）
+    # ports:
+    #   - "3000:3000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost/api}
+      - REACT_APP_ENVIRONMENT=${ENVIRONMENT:-development}
     networks:
       - shodo-network
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    
-  # User-Agent (コメントアウト: ディレクトリが存在しないため)
-  # user-agent:
-  #   build: ./user-agent
-  #   environment:
-  #     - PLAYWRIGHT_BROWSERS_PATH=/browsers
-  #     - API_URL=http://backend:8000
-  #   volumes:
-  #     - ./browser-data:/data
-  #   networks:
-  #     - shodo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    restart: unless-stopped
     
   # データベース
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=shodo
-      - POSTGRES_USER=shodo
-      - POSTGRES_PASSWORD=shodo_pass
+      - POSTGRES_DB=${POSTGRES_DB:-shodo}
+      - POSTGRES_USER=${POSTGRES_USER:-shodo}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-shodo_pass}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=ja_JP.utf8
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
     networks:
-      - shodo-network
-    ports:
-      - "5432:5432"
+      - shodo-internal  # 内部ネットワークのみ
+    # ポート公開を削除（本番環境では内部のみ）
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shodo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    restart: unless-stopped
     
   # キャッシュ
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     networks:
-      - shodo-network
-    ports:
-      - "6379:6379"
+      - shodo-internal  # 内部ネットワークのみ
+    # ポート公開を削除（本番環境では内部のみ）
+    # ports:
+    #   - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
 
 networks:
   shodo-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+  shodo-internal:
+    driver: bridge
+    internal: true  # 外部アクセス不可
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
