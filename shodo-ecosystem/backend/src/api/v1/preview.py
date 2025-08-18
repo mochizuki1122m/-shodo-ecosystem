@@ -16,12 +16,12 @@ from ...schemas.preview import (
 )
 from ...schemas.common import BaseResponse, PaginatedResponse, PaginationParams, StatusEnum
 from ...core.security import JWTManager, TokenData, security, limiter, InputSanitizer
-from ...services.preview.sandbox_engine import SandboxEngine
+from ...services.preview.sandbox_engine import SandboxPreviewEngine
 
 router = APIRouter()
 
 # エンジンのインスタンス
-preview_engine = SandboxEngine()
+preview_engine = SandboxPreviewEngine()
 
 @router.post("/generate", response_model=BaseResponse[PreviewResponse])
 @limiter.limit("20/minute")
