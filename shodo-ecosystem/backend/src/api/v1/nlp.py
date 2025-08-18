@@ -1,299 +1,260 @@
 """
-NLP APIエンドポイント
+NLP API endpoints
+MUST: OpenAPI compliant, BaseResponse pattern
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from typing import List, Optional
-import uuid
-from datetime import datetime
-import asyncio
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
+import structlog
 
-from ...schemas.nlp import (
-    NLPRequest, NLPResponse, NLPSession,
-    NLPBatchRequest, NLPBatchResponse,
-    RuleDefinition, RuleMatch, AIAnalysis
+from ...schemas.base import BaseResponse, error_response
+from ...schemas.nlp import NLPRequest, NLPResponse, NLPAnalysisData
+from ...services.nlp.dual_path_engine import DualPathEngine, AnalysisResult
+from ...core.config import settings
+from ...core.security import InputSanitizer, PIIMasking
+from ...middleware.auth import get_current_user
+from ...middleware.rate_limit import rate_limit
+from ...utils.correlation import get_correlation_id
+
+logger = structlog.get_logger()
+
+router = APIRouter(
+    prefix="/api/v1/nlp",
+    tags=["NLP"],
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Internal server error"}
+    }
 )
-from ...schemas.common import BaseResponse, PaginatedResponse, PaginationParams, StatusEnum
-from ...core.security import JWTManager, TokenData, security, limiter, InputSanitizer
-from ...services.nlp.dual_path_engine import DualPathEngine
 
-router = APIRouter()
+# Initialize engine with dependency injection
+nlp_engine = DualPathEngine(
+    vllm_url=settings.vllm_url,
+    cache_ttl=300
+)
 
-# エンジンのインスタンス
-nlp_engine = DualPathEngine()
-
-@router.post("/analyze", response_model=BaseResponse[NLPResponse])
-@limiter.limit("30/minute")
+@router.post(
+    "/analyze",
+    response_model=BaseResponse[NLPAnalysisData],
+    summary="Analyze natural language input",
+    description="Process Japanese text using dual-path analysis engine"
+)
+@rate_limit(limit=30)  # 30 requests per minute
 async def analyze_text(
     request: NLPRequest,
-    background_tasks: BackgroundTasks,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
+    req: Request,
+    current_user=Depends(get_current_user)
+) -> BaseResponse[NLPAnalysisData]:
     """
-    テキスト解析
+    Analyze natural language input with dual-path engine
     
-    ルールベースとAIベースのハイブリッド解析を実行します。
+    Processing:
+    1. Input sanitization
+    2. PII masking for logs
+    3. Dual-path analysis (rule + AI)
+    4. Response formatting
     """
+    correlation_id = get_correlation_id(req)
+    
     try:
-        # セッションIDの生成または使用
-        session_id = request.session_id or str(uuid.uuid4())
-        analysis_id = str(uuid.uuid4())
+        # Input sanitization
+        sanitized_text = InputSanitizer.sanitize_string(
+            request.text,
+            max_length=5000
+        )
         
-        # テキストのサニタイズ
-        sanitized_text = InputSanitizer.validate_prompt(request.text)
+        # Log with PII masking
+        logger.info(
+            "NLP analysis request",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            text_length=len(sanitized_text),
+            mode=request.mode,
+            masked_text=PIIMasking.mask_pii(sanitized_text[:100])
+        )
         
-        # 解析の実行
-        start_time = datetime.utcnow()
-        
-        # ルールベース解析
-        rule_matches = await nlp_engine.analyze_with_rules(sanitized_text)
-        
-        # AI解析（オプション）
-        ai_analysis = None
-        if request.analysis_type in [AnalysisType.AI_BASED, AnalysisType.HYBRID]:
-            ai_analysis = await nlp_engine.analyze_with_ai(
+        # Perform analysis based on mode
+        if request.mode == "rule_only":
+            result = await nlp_engine.analyze_with_rules(sanitized_text)
+        elif request.mode == "ai_only":
+            result = await nlp_engine.analyze_with_ai(
                 sanitized_text,
-                context=request.context
+                request.context
             )
+        else:  # dual_path (default)
+            analysis_result = await nlp_engine.analyze(
+                sanitized_text,
+                request.context
+            )
+            result = {
+                "intent": analysis_result.intent,
+                "confidence": analysis_result.confidence,
+                "entities": analysis_result.entities,
+                "service": analysis_result.service,
+                "requires_confirmation": analysis_result.requires_confirmation,
+                "suggestions": analysis_result.suggestions,
+                "processing_path": analysis_result.processing_path,
+                "processing_time_ms": analysis_result.processing_time_ms
+            }
         
-        # 結果の統合
-        combined_score = nlp_engine.calculate_combined_score(
-            rule_matches,
-            ai_analysis
-        )
+        # Create response
+        response_data = NLPAnalysisData(**result)
         
-        processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-        
-        response = NLPResponse(
-            session_id=session_id,
-            analysis_id=analysis_id,
-            status=StatusEnum.COMPLETED,
-            rule_matches=rule_matches,
-            ai_analysis=ai_analysis,
-            combined_score=combined_score,
-            processing_time_ms=processing_time,
-            timestamp=datetime.utcnow()
-        )
-        
-        # バックグラウンドで統計を更新
-        background_tasks.add_task(
-            update_session_stats,
-            session_id,
-            token_data.user_id,
-            len(sanitized_text)
+        logger.info(
+            "NLP analysis completed",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            intent=response_data.intent,
+            confidence=response_data.confidence,
+            processing_path=response_data.processing_path,
+            processing_time_ms=response_data.processing_time_ms
         )
         
         return BaseResponse(
             success=True,
-            data=response,
-            request_id=analysis_id
+            message="Analysis completed successfully",
+            correlation_id=correlation_id,
+            data=response_data
         )
         
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(
+            "NLP analysis validation error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e)
+        )
+        return error_response(
+            code="VALIDATION_ERROR",
+            message=str(e),
+            correlation_id=correlation_id
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-@router.post("/analyze/batch", response_model=BaseResponse[NLPBatchResponse])
-@limiter.limit("10/minute")
-async def analyze_batch(
-    request: NLPBatchRequest,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    バッチテキスト解析
-    
-    複数のテキストを一括で解析します。
-    """
-    batch_id = str(uuid.uuid4())
-    start_time = datetime.utcnow()
-    
-    results = []
-    failed = 0
-    
-    # 並列または順次処理
-    if request.parallel:
-        # 並列処理
-        tasks = []
-        for item in request.items:
-            task = analyze_single_item(item)
-            tasks.append(task)
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # エラーカウント
-        for result in results:
-            if isinstance(result, Exception):
-                failed += 1
-    else:
-        # 順次処理
-        for item in request.items:
-            try:
-                result = await analyze_single_item(item)
-                results.append(result)
-            except Exception as e:
-                results.append(None)
-                failed += 1
-    
-    processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
-    
-    response = NLPBatchResponse(
-        batch_id=batch_id,
-        total=len(request.items),
-        completed=len(request.items) - failed,
-        failed=failed,
-        results=[r for r in results if r and not isinstance(r, Exception)],
-        processing_time_ms=processing_time,
-        timestamp=datetime.utcnow()
-    )
-    
-    return BaseResponse(
-        success=True,
-        data=response,
-        request_id=batch_id
-    )
-
-@router.get("/sessions", response_model=BaseResponse[PaginatedResponse[NLPSession]])
-async def get_sessions(
-    pagination: PaginationParams = Depends(),
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    セッション一覧取得
-    
-    ユーザーのNLPセッション一覧を取得します。
-    """
-    # TODO: データベースから実際のセッションを取得
-    mock_sessions = [
-        NLPSession(
-            session_id=str(uuid.uuid4()),
-            user_id=token_data.user_id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            analysis_count=5,
-            total_tokens=1500,
-            metadata={}
+        logger.error(
+            "NLP analysis error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e),
+            exc_info=True
         )
-    ]
-    
-    response = PaginatedResponse(
-        items=mock_sessions,
-        total=1,
-        page=pagination.page,
-        per_page=pagination.per_page,
-        pages=1,
-        has_next=False,
-        has_prev=False
-    )
-    
-    return BaseResponse(
-        success=True,
-        data=response
-    )
-
-@router.get("/sessions/{session_id}", response_model=BaseResponse[NLPSession])
-async def get_session(
-    session_id: str,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    セッション詳細取得
-    
-    特定のNLPセッションの詳細を取得します。
-    """
-    # TODO: データベースから実際のセッションを取得
-    session = NLPSession(
-        session_id=session_id,
-        user_id=token_data.user_id,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        analysis_count=5,
-        total_tokens=1500,
-        metadata={}
-    )
-    
-    return BaseResponse(
-        success=True,
-        data=session
-    )
-
-@router.get("/rules", response_model=BaseResponse[List[RuleDefinition]])
-async def get_rules(
-    category: Optional[str] = None,
-    is_active: Optional[bool] = True,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    ルール一覧取得
-    
-    利用可能なルール定義の一覧を取得します。
-    """
-    # TODO: データベースから実際のルールを取得
-    rules = nlp_engine.get_rules(category=category, is_active=is_active)
-    
-    return BaseResponse(
-        success=True,
-        data=rules
-    )
-
-@router.post("/rules", response_model=BaseResponse[RuleDefinition])
-@limiter.limit("10/minute")
-async def create_rule(
-    rule: RuleDefinition,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    ルール作成
-    
-    新しいルール定義を作成します（管理者のみ）。
-    """
-    if "admin" not in token_data.roles:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    # TODO: データベースにルールを保存
-    created_rule = nlp_engine.add_rule(rule)
-    
-    return BaseResponse(
-        success=True,
-        data=created_rule
-    )
-
-# ヘルパー関数
-async def analyze_single_item(request: NLPRequest) -> NLPResponse:
-    """単一アイテムの解析"""
-    session_id = request.session_id or str(uuid.uuid4())
-    analysis_id = str(uuid.uuid4())
-    
-    # サニタイズ
-    sanitized_text = InputSanitizer.validate_prompt(request.text)
-    
-    # 解析実行
-    rule_matches = await nlp_engine.analyze_with_rules(sanitized_text)
-    ai_analysis = None
-    
-    if request.analysis_type in [AnalysisType.AI_BASED, AnalysisType.HYBRID]:
-        ai_analysis = await nlp_engine.analyze_with_ai(
-            sanitized_text,
-            context=request.context
+        return error_response(
+            code="ANALYSIS_ERROR",
+            message="Failed to analyze text",
+            correlation_id=correlation_id
         )
-    
-    combined_score = nlp_engine.calculate_combined_score(
-        rule_matches,
-        ai_analysis
-    )
-    
-    return NLPResponse(
-        session_id=session_id,
-        analysis_id=analysis_id,
-        status=StatusEnum.COMPLETED,
-        rule_matches=rule_matches,
-        ai_analysis=ai_analysis,
-        combined_score=combined_score,
-        processing_time_ms=0,
-        timestamp=datetime.utcnow()
-    )
 
-async def update_session_stats(session_id: str, user_id: str, text_length: int):
-    """セッション統計の更新"""
-    # TODO: データベースでセッション統計を更新
-    pass
+@router.post(
+    "/refine",
+    response_model=BaseResponse[NLPAnalysisData],
+    summary="Refine analysis with additional context",
+    description="Refine previous analysis result with clarification"
+)
+@rate_limit(limit=20)
+async def refine_analysis(
+    current_result: NLPAnalysisData,
+    refinement: str,
+    req: Request,
+    current_user=Depends(get_current_user)
+) -> BaseResponse[NLPAnalysisData]:
+    """
+    Refine existing analysis with additional input
+    """
+    correlation_id = get_correlation_id(req)
+    
+    try:
+        # Create AnalysisResult from current data
+        current_analysis = AnalysisResult(
+            intent=current_result.intent,
+            confidence=current_result.confidence,
+            entities=current_result.entities,
+            service=current_result.service,
+            requires_confirmation=current_result.requires_confirmation,
+            suggestions=current_result.suggestions,
+            processing_path=current_result.processing_path,
+            processing_time_ms=0
+        )
+        
+        # Refine the analysis
+        refined = await nlp_engine.refine(
+            current_analysis,
+            InputSanitizer.sanitize_string(refinement)
+        )
+        
+        response_data = NLPAnalysisData(
+            intent=refined.intent,
+            confidence=refined.confidence,
+            entities=refined.entities,
+            service=refined.service,
+            requires_confirmation=refined.requires_confirmation,
+            suggestions=refined.suggestions,
+            processing_path=refined.processing_path,
+            processing_time_ms=refined.processing_time_ms
+        )
+        
+        return BaseResponse(
+            success=True,
+            message="Analysis refined successfully",
+            correlation_id=correlation_id,
+            data=response_data
+        )
+        
+    except Exception as e:
+        logger.error(
+            "Refinement error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e),
+            exc_info=True
+        )
+        return error_response(
+            code="REFINEMENT_ERROR",
+            message="Failed to refine analysis",
+            correlation_id=correlation_id
+        )
+
+@router.get(
+    "/health",
+    response_model=BaseResponse[dict],
+    summary="NLP service health check"
+)
+async def health_check(req: Request) -> BaseResponse[dict]:
+    """Check NLP service health"""
+    correlation_id = get_correlation_id(req)
+    
+    try:
+        # Test rule engine
+        rule_test = await nlp_engine.analyze_with_rules("テスト")
+        rule_healthy = rule_test.get("intent") is not None
+        
+        # Test AI connection
+        ai_healthy = True
+        try:
+            await nlp_engine.analyze_with_ai("test", {})
+        except:
+            ai_healthy = False
+        
+        health_data = {
+            "service": "nlp",
+            "status": "healthy" if (rule_healthy and ai_healthy) else "degraded",
+            "components": {
+                "rule_engine": "healthy" if rule_healthy else "unhealthy",
+                "ai_engine": "healthy" if ai_healthy else "unhealthy",
+                "cache": "healthy"
+            }
+        }
+        
+        return BaseResponse(
+            success=True,
+            correlation_id=correlation_id,
+            data=health_data
+        )
+        
+    except Exception as e:
+        logger.error("NLP health check failed", error=str(e))
+        return error_response(
+            code="HEALTH_CHECK_ERROR",
+            message="Health check failed",
+            correlation_id=correlation_id
+        )

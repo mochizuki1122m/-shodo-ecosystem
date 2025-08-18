@@ -30,12 +30,12 @@ class Preview:
     id: str
     version_id: str
     service: str
-    visual: Dict  # ビジュアルプレビューデータ
+    visual: Dict  # ビジュアルプレビューデータ (html, css, javascript)
     diff: Dict  # 差分情報
     changes: List[Change]
     created_at: datetime
     revert_token: str
-    confidence_score: float
+    confidence: float  # Renamed from confidence_score for API consistency
     refinement_history: List[Dict] = None
 
 class VirtualEnvironment:
@@ -177,8 +177,15 @@ class VisualRenderer:
 class SandboxPreviewEngine:
     """サンドボックスプレビューエンジン"""
     
-    def __init__(self, config: Dict):
-        self.config = config
+    def __init__(self, max_versions: int = 100, cache_size: int = 50):
+        """Initialize with dependency injection
+        
+        Args:
+            max_versions: Maximum number of versions to keep
+            cache_size: Maximum number of virtual environments to cache
+        """
+        self.max_versions = max_versions
+        self.cache_size = cache_size
         self.version_control = VersionControl()
         self.diff_calculator = DiffCalculator()
         self.visual_renderer = VisualRenderer()

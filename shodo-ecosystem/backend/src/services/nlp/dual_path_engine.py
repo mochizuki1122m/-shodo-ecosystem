@@ -32,9 +32,15 @@ class AnalysisResult:
 class DualPathEngine:
     """二重経路解析エンジン"""
     
-    def __init__(self, config: Dict):
-        self.config = config
-        self.vllm_url = config.get('vllm_url', 'http://vllm:8001')
+    def __init__(self, vllm_url: str = 'http://vllm:8001', cache_ttl: int = 300):
+        """Initialize with dependency injection
+        
+        Args:
+            vllm_url: AI server URL
+            cache_ttl: Cache TTL in seconds
+        """
+        self.vllm_url = vllm_url
+        self.cache_ttl = cache_ttl
         self.cache = {}  # 簡易キャッシュ
         
         # ルールベース設定
@@ -159,12 +165,12 @@ class DualPathEngine:
         normalized_text = self._normalize_input(text)
         result = await self._rule_based_analysis(normalized_text)
         return {
-            "matches": [{
-                "intent": result["intent"],
-                "confidence": result["confidence"],
-                "service": result.get("service")
-            }],
-            "count": 1 if result["intent"] != "unknown" else 0
+            "intent": result["intent"],
+            "confidence": result["confidence"],
+            "entities": result.get("entities", {}),
+            "service": result.get("service"),
+            "processing_path": "rule",
+            "requires_confirmation": result["confidence"] < 0.7
         }
     
     async def analyze_with_ai(self, text: str, context: Optional[Dict] = None) -> Optional[Dict]:

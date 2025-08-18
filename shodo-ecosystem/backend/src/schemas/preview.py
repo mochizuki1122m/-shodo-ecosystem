@@ -1,85 +1,109 @@
 """
-プレビュー関連スキーマ
+Preview request/response schemas
+MUST: Match OpenAPI specification and engine data structures
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
-from datetime import datetime
-from enum import Enum
+from typing import Optional, Dict, List, Any
+from pydantic import BaseModel, Field, validator
 
-class ChangeType(str, Enum):
-    """変更タイプ"""
-    STYLE = "style"
-    CONTENT = "content"
-    STRUCTURE = "structure"
-    DATA = "data"
-
-class ApprovalStatus(str, Enum):
-    """承認ステータス"""
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-class Change(BaseModel):
-    """変更内容"""
-    type: ChangeType = Field(..., description="変更タイプ")
-    target: str = Field(..., description="変更対象")
-    property: str = Field(..., description="プロパティ")
-    old_value: Any = Field(..., description="変更前の値")
-    new_value: Any = Field(..., description="変更後の値")
-    metadata: Optional[Dict] = Field(default=None, description="メタデータ")
+class ChangeRequest(BaseModel):
+    """Change to apply in preview"""
+    type: str = Field(
+        ...,
+        pattern="^(style|content|structure|data)$",
+        description="Type of change"
+    )
+    target: str = Field(
+        ...,
+        description="Target element selector or ID"
+    )
+    property: str = Field(
+        ...,
+        description="Property to change"
+    )
+    old_value: Optional[Any] = Field(
+        default=None,
+        description="Previous value"
+    )
+    new_value: Any = Field(
+        ...,
+        description="New value to apply"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional metadata"
+    )
 
 class PreviewRequest(BaseModel):
-    """プレビューリクエスト"""
-    source_type: str = Field(..., description="ソースタイプ")
-    source_id: str = Field(..., description="ソースID")
-    modifications: List[Dict[str, Any]] = Field(..., description="変更内容")
-    session_id: Optional[str] = Field(default=None, description="セッションID")
+    """Preview generation request"""
+    changes: List[ChangeRequest] = Field(
+        ...,
+        min_items=1,
+        description="Changes to apply"
+    )
+    service_id: str = Field(
+        ...,
+        description="Target service identifier"
+    )
+    context: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional context"
+    )
 
-class PreviewData(BaseModel):
-    """プレビューデータ"""
-    visual_url: str = Field(..., description="ビジュアルURL")
-    diff_html: str = Field(..., description="差分HTML")
-    changes: List[Change] = Field(..., description="変更リスト")
-    confidence_score: float = Field(..., description="確信度スコア")
-
-class PreviewResponse(BaseModel):
-    """プレビューレスポンス"""
-    preview_id: str = Field(..., description="プレビューID")
-    session_id: str = Field(..., description="セッションID")
-    preview_data: PreviewData = Field(..., description="プレビューデータ")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="作成日時")
-
-class RefinementRequest(BaseModel):
-    """改善リクエスト"""
-    refinement: str = Field(..., description="改善内容")
+class RefineRequest(BaseModel):
+    """Preview refinement request"""
+    refinement: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Natural language refinement instruction"
+    )
+    
+    @validator('refinement')
+    def validate_refinement(cls, v):
+        if not v or v.isspace():
+            raise ValueError("Refinement cannot be empty")
+        return v
 
 class ApplyRequest(BaseModel):
-    """適用リクエスト"""
-    confirm: bool = Field(default=True, description="確認フラグ")
+    """Production apply request"""
+    confirmed: bool = Field(
+        default=False,
+        description="Confirmation flag for production deployment"
+    )
+    dry_run: bool = Field(
+        default=False,
+        description="Perform dry run without actual changes"
+    )
 
-class ApplyResponse(BaseModel):
-    """適用レスポンス"""
-    success: bool = Field(..., description="成功フラグ")
-    applied_changes: int = Field(..., description="適用された変更数")
-    rollback_token: str = Field(..., description="ロールバックトークン")
+class VisualData(BaseModel):
+    """Visual preview data"""
+    html: str = Field(description="HTML content")
+    css: str = Field(description="CSS styles")
+    javascript: Optional[str] = Field(
+        default="",
+        description="JavaScript code"
+    )
+    screenshot: Optional[str] = Field(
+        default=None,
+        description="Screenshot URL or base64"
+    )
 
-class RollbackRequest(BaseModel):
-    """ロールバックリクエスト"""
-    rollback_token: str = Field(..., description="ロールバックトークン")
+class PreviewData(BaseModel):
+    """Preview response data"""
+    id: str = Field(description="Preview ID")
+    version_id: str = Field(description="Version ID")
+    service: str = Field(description="Service identifier")
+    visual: VisualData = Field(description="Visual preview data")
+    diff: Dict[str, Any] = Field(description="Diff information")
+    changes: List[Dict[str, Any]] = Field(description="Applied changes")
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Confidence score"
+    )
+    revert_token: str = Field(description="Token for reverting changes")
 
-class RollbackResponse(BaseModel):
-    """ロールバックレスポンス"""
-    success: bool = Field(..., description="成功フラグ")
-    reverted_changes: int = Field(..., description="元に戻した変更数")
-
-class PreviewHistory(BaseModel):
-    """プレビュー履歴"""
-    history: List[PreviewResponse] = Field(default_factory=list, description="履歴リスト")
-
-class PreviewSession(BaseModel):
-    """プレビューセッション"""
-    session_id: str = Field(..., description="セッションID")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="作成日時")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="更新日時")
-    preview_count: int = Field(default=0, description="プレビュー数")
+class PreviewResponse(BaseModel):
+    """Full preview response (deprecated, use BaseResponse[PreviewData])"""
+    pass

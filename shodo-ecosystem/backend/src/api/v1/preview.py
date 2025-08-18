@@ -1,413 +1,422 @@
 """
-プレビューAPIエンドポイント
+Preview API endpoints
+MUST: OpenAPI compliant, BaseResponse pattern
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from fastapi.responses import HTMLResponse
 from typing import List, Optional
-import uuid
-from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+import structlog
 
+from ...schemas.base import BaseResponse, error_response
 from ...schemas.preview import (
     PreviewRequest, PreviewResponse, PreviewData,
-    RefinementRequest, ApplyRequest, ApplyResponse,
-    RollbackRequest, RollbackResponse, PreviewHistory,
-    PreviewSession, Change, ChangeType, ApprovalStatus
+    RefineRequest, ApplyRequest
 )
-from ...schemas.common import BaseResponse, PaginatedResponse, PaginationParams, StatusEnum
-from ...core.security import JWTManager, TokenData, security, limiter, InputSanitizer
-from ...services.preview.sandbox_engine import SandboxPreviewEngine
+from ...services.preview.sandbox_engine import (
+    SandboxPreviewEngine, Preview, Change
+)
+from ...core.config import settings
+from ...core.security import InputSanitizer
+from ...middleware.auth import get_current_user
+from ...middleware.rate_limit import rate_limit
+from ...utils.correlation import get_correlation_id
 
-router = APIRouter()
+logger = structlog.get_logger()
 
-# エンジンのインスタンス
-preview_engine = SandboxPreviewEngine()
+router = APIRouter(
+    prefix="/api/v1/preview",
+    tags=["Preview"],
+    responses={
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Internal server error"}
+    }
+)
 
-@router.post("/generate", response_model=BaseResponse[PreviewResponse])
-@limiter.limit("20/minute")
+# Initialize engine with dependency injection
+preview_engine = SandboxPreviewEngine(
+    max_versions=100,
+    cache_size=50
+)
+
+# In-memory preview storage (should be Redis in production)
+preview_storage = {}
+
+@router.post(
+    "/generate",
+    response_model=BaseResponse[PreviewData],
+    summary="Generate preview",
+    description="Generate a sandbox preview with changes"
+)
+@rate_limit(limit=20)
 async def generate_preview(
     request: PreviewRequest,
-    background_tasks: BackgroundTasks,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
+    req: Request,
+    current_user=Depends(get_current_user)
+) -> BaseResponse[PreviewData]:
     """
-    プレビュー生成
+    Generate preview in sandbox environment
     
-    指定された変更内容でプレビューを生成します。
+    Processing:
+    1. Validate changes
+    2. Create virtual environment
+    3. Apply changes
+    4. Generate visual preview
+    5. Calculate diff
     """
+    correlation_id = get_correlation_id(req)
+    
     try:
-        # セッションIDの生成または使用
-        session_id = request.session_id or str(uuid.uuid4())
-        preview_id = str(uuid.uuid4())
-        
-        # 変更内容のサニタイズ
-        sanitized_modifications = InputSanitizer.sanitize_json(request.modifications)
-        
-        # プレビューの生成
-        preview_data = await preview_engine.generate_preview(
-            source_type=request.source_type,
-            source_id=request.source_id,
-            modifications=sanitized_modifications,
-            target_element=request.target_element
+        logger.info(
+            "Preview generation request",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            service_id=request.service_id,
+            changes_count=len(request.changes)
         )
         
-        # プレビューデータの作成
-        preview = PreviewData(
-            preview_id=preview_id,
-            version=1,
-            html=InputSanitizer.sanitize_html(preview_data.get("html", "")),
-            css=preview_data.get("css", ""),
-            javascript=preview_data.get("javascript", ""),
-            changes=preview_data.get("changes", []),
-            confidence=preview_data.get("confidence", 0.8),
-            metadata=preview_data.get("metadata", {}),
-            created_at=datetime.utcnow()
+        # Convert request changes to engine format
+        engine_changes = []
+        for change in request.changes:
+            engine_changes.append(Change(
+                type=change.type,
+                target=InputSanitizer.sanitize_string(change.target),
+                property=InputSanitizer.sanitize_string(change.property),
+                old_value=change.old_value,
+                new_value=InputSanitizer.sanitize_string(change.new_value),
+                metadata=change.metadata
+            ))
+        
+        # Generate preview
+        preview = await preview_engine.generate_preview(
+            engine_changes,
+            {
+                "service_id": request.service_id,
+                "context": request.context or {},
+                "user_id": current_user.id
+            }
         )
         
-        response = PreviewResponse(
-            session_id=session_id,
-            preview_id=preview_id,
-            status=StatusEnum.COMPLETED,
-            preview_data=preview,
-            preview_url=f"/api/v1/preview/view/{preview_id}",
-            expires_at=datetime.utcnow() + timedelta(hours=24),
-            can_apply=True,
-            warnings=preview_data.get("warnings", [])
+        # Store preview for later refinement
+        preview_storage[preview.id] = preview
+        
+        # Convert to response format
+        response_data = PreviewData(
+            id=preview.id,
+            version_id=preview.version_id,
+            service=preview.service,
+            visual={
+                "html": preview.visual.get("html", ""),
+                "css": preview.visual.get("css", ""),
+                "javascript": preview.visual.get("javascript", ""),
+                "screenshot": preview.visual.get("screenshot")
+            },
+            diff=preview.diff,
+            changes=[{
+                "type": c.type,
+                "target": c.target,
+                "property": c.property,
+                "old_value": c.old_value,
+                "new_value": c.new_value
+            } for c in preview.changes],
+            confidence=preview.confidence,
+            revert_token=preview.revert_token
         )
         
-        # バックグラウンドでセッション統計を更新
-        background_tasks.add_task(
-            update_preview_session,
-            session_id,
-            token_data.user_id
+        logger.info(
+            "Preview generated",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            preview_id=preview.id,
+            confidence=preview.confidence
         )
         
         return BaseResponse(
             success=True,
-            data=response,
-            request_id=preview_id
+            message="Preview generated successfully",
+            correlation_id=correlation_id,
+            data=response_data
         )
         
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(
+            "Preview validation error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e)
+        )
+        return error_response(
+            code="VALIDATION_ERROR",
+            message=str(e),
+            correlation_id=correlation_id
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
+        logger.error(
+            "Preview generation error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e),
+            exc_info=True
+        )
+        return error_response(
+            code="PREVIEW_ERROR",
+            message="Failed to generate preview",
+            correlation_id=correlation_id
+        )
 
-@router.post("/refine", response_model=BaseResponse[PreviewResponse])
-@limiter.limit("30/minute")
+@router.post(
+    "/{preview_id}/refine",
+    response_model=BaseResponse[PreviewData],
+    summary="Refine preview",
+    description="Refine existing preview with natural language"
+)
+@rate_limit(limit=30)
 async def refine_preview(
-    request: RefinementRequest,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
+    preview_id: str,
+    request: RefineRequest,
+    req: Request,
+    current_user=Depends(get_current_user)
+) -> BaseResponse[PreviewData]:
     """
-    プレビュー修正
+    Refine preview with natural language instructions
+    """
+    correlation_id = get_correlation_id(req)
     
-    既存のプレビューを修正指示に基づいて更新します。
-    """
     try:
-        # 既存のプレビューを取得
-        existing_preview = await preview_engine.get_preview(request.preview_id)
-        if not existing_preview:
-            raise HTTPException(status_code=404, detail="Preview not found")
+        # Get existing preview
+        if preview_id not in preview_storage:
+            return error_response(
+                code="NOT_FOUND",
+                message=f"Preview {preview_id} not found",
+                correlation_id=correlation_id
+            )
         
-        # 修正指示のサニタイズ
-        sanitized_refinement = InputSanitizer.validate_prompt(request.refinement_text)
+        current_preview = preview_storage[preview_id]
         
-        # 修正の適用
-        refined_data = await preview_engine.apply_refinement(
-            preview_id=request.preview_id,
-            refinement_text=sanitized_refinement,
-            keep_history=request.keep_history
+        logger.info(
+            "Preview refinement request",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            preview_id=preview_id,
+            refinement_length=len(request.refinement)
         )
         
-        # 新しいバージョンの作成
-        new_version = existing_preview.version + 1
-        preview = PreviewData(
-            preview_id=request.preview_id,
-            version=new_version,
-            html=InputSanitizer.sanitize_html(refined_data.get("html", "")),
-            css=refined_data.get("css", ""),
-            javascript=refined_data.get("javascript", ""),
-            changes=refined_data.get("changes", []),
-            confidence=refined_data.get("confidence", 0.85),
-            metadata=refined_data.get("metadata", {}),
-            created_at=datetime.utcnow()
+        # Refine the preview
+        refined_preview = await preview_engine.refine_preview(
+            current_preview,
+            InputSanitizer.sanitize_string(request.refinement, max_length=1000)
         )
         
-        response = PreviewResponse(
-            session_id=existing_preview.session_id,
-            preview_id=request.preview_id,
-            status=StatusEnum.COMPLETED,
-            preview_data=preview,
-            preview_url=f"/api/v1/preview/view/{request.preview_id}",
-            expires_at=datetime.utcnow() + timedelta(hours=24),
-            can_apply=True,
-            warnings=refined_data.get("warnings", [])
+        # Store refined version
+        preview_storage[refined_preview.id] = refined_preview
+        
+        # Convert to response
+        response_data = PreviewData(
+            id=refined_preview.id,
+            version_id=refined_preview.version_id,
+            service=refined_preview.service,
+            visual={
+                "html": refined_preview.visual.get("html", ""),
+                "css": refined_preview.visual.get("css", ""),
+                "javascript": refined_preview.visual.get("javascript", ""),
+                "screenshot": refined_preview.visual.get("screenshot")
+            },
+            diff=refined_preview.diff,
+            changes=[{
+                "type": c.type,
+                "target": c.target,
+                "property": c.property,
+                "old_value": c.old_value,
+                "new_value": c.new_value
+            } for c in refined_preview.changes],
+            confidence=refined_preview.confidence,
+            revert_token=refined_preview.revert_token
         )
         
         return BaseResponse(
             success=True,
-            data=response
+            message="Preview refined successfully",
+            correlation_id=correlation_id,
+            data=response_data
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Refinement failed: {str(e)}")
+        logger.error(
+            "Preview refinement error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e),
+            exc_info=True
+        )
+        return error_response(
+            code="REFINEMENT_ERROR",
+            message="Failed to refine preview",
+            correlation_id=correlation_id
+        )
 
-@router.post("/apply", response_model=BaseResponse[ApplyResponse])
-@limiter.limit("5/minute")
+@router.post(
+    "/{preview_id}/apply",
+    response_model=BaseResponse[dict],
+    summary="Apply preview to production",
+    description="Apply sandbox preview to production environment"
+)
+@rate_limit(limit=5)
 async def apply_preview(
+    preview_id: str,
     request: ApplyRequest,
-    background_tasks: BackgroundTasks,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
+    req: Request,
+    current_user=Depends(get_current_user)
+) -> BaseResponse[dict]:
     """
-    プレビュー適用
+    Apply preview to production with confirmation
+    """
+    correlation_id = get_correlation_id(req)
     
-    プレビューを本番環境に適用します。
-    """
     try:
-        # プレビューの取得
-        preview = await preview_engine.get_preview(request.preview_id)
-        if not preview:
-            raise HTTPException(status_code=404, detail="Preview not found")
-        
-        # 承認チェック（必要に応じて）
-        if request.approval_token:
-            # TODO: 承認トークンの検証
-            pass
-        
-        # ドライラン
-        if request.dry_run:
-            # 実際の適用はせず、シミュレーション結果を返す
-            return BaseResponse(
-                success=True,
-                data=ApplyResponse(
-                    apply_id=str(uuid.uuid4()),
-                    status=ApprovalStatus.PENDING,
-                    applied_changes=preview.changes,
-                    rollback_id=None,
-                    backup_id=str(uuid.uuid4()) if request.backup else None,
-                    timestamp=datetime.utcnow()
-                )
+        if preview_id not in preview_storage:
+            return error_response(
+                code="NOT_FOUND",
+                message=f"Preview {preview_id} not found",
+                correlation_id=correlation_id
             )
         
-        # バックアップの作成
-        backup_id = None
-        if request.backup:
-            backup_id = await preview_engine.create_backup(
-                preview_id=request.preview_id,
-                target_environment=request.target_environment
+        preview = preview_storage[preview_id]
+        
+        # Verify confirmation
+        if not request.confirmed:
+            return error_response(
+                code="CONFIRMATION_REQUIRED",
+                message="Please confirm the production deployment",
+                correlation_id=correlation_id
             )
         
-        # 実際の適用
-        apply_result = await preview_engine.apply_to_production(
-            preview_id=request.preview_id,
-            target_environment=request.target_environment,
-            user_id=token_data.user_id
+        logger.warning(
+            "Applying preview to production",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            preview_id=preview_id,
+            service=preview.service
         )
         
-        apply_id = str(uuid.uuid4())
+        # Apply to production
+        result = await preview_engine.apply_to_production(preview)
         
-        # バックグラウンドで監査ログを記録
-        background_tasks.add_task(
-            log_apply_action,
-            apply_id,
-            request.preview_id,
-            token_data.user_id
+        logger.info(
+            "Preview applied to production",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            preview_id=preview_id,
+            result=result
         )
         
         return BaseResponse(
             success=True,
-            data=ApplyResponse(
-                apply_id=apply_id,
-                status=ApprovalStatus.APPLIED,
-                applied_changes=apply_result.get("changes", []),
-                rollback_id=apply_result.get("rollback_id"),
-                backup_id=backup_id,
-                timestamp=datetime.utcnow()
-            )
+            message="Preview applied to production successfully",
+            correlation_id=correlation_id,
+            data=result
         )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Apply failed: {str(e)}")
+        logger.error(
+            "Production apply error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e),
+            exc_info=True
+        )
+        return error_response(
+            code="APPLY_ERROR",
+            message="Failed to apply preview to production",
+            correlation_id=correlation_id
+        )
 
-@router.post("/rollback", response_model=BaseResponse[RollbackResponse])
-@limiter.limit("5/minute")
-async def rollback_preview(
-    request: RollbackRequest,
-    background_tasks: BackgroundTasks,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
+@router.post(
+    "/rollback/{version_id}",
+    response_model=BaseResponse[dict],
+    summary="Rollback to previous version",
+    description="Rollback to a specific version"
+)
+@rate_limit(limit=5)
+async def rollback_version(
+    version_id: str,
+    req: Request,
+    current_user=Depends(get_current_user)
+) -> BaseResponse[dict]:
     """
-    ロールバック
+    Rollback to a previous version
+    """
+    correlation_id = get_correlation_id(req)
     
-    適用済みの変更をロールバックします。
-    """
     try:
-        # ロールバックの実行
-        rollback_result = await preview_engine.rollback(
-            apply_id=request.apply_id,
-            rollback_to=request.rollback_to,
-            reason=request.reason,
-            user_id=token_data.user_id
+        logger.warning(
+            "Rollback request",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            version_id=version_id
         )
         
-        rollback_id = str(uuid.uuid4())
+        result = await preview_engine.rollback(version_id)
         
-        # バックグラウンドで監査ログを記録
-        background_tasks.add_task(
-            log_rollback_action,
-            rollback_id,
-            request.apply_id,
-            token_data.user_id,
-            request.reason
+        logger.info(
+            "Rollback completed",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            version_id=version_id,
+            result=result
         )
         
         return BaseResponse(
             success=True,
-            data=RollbackResponse(
-                rollback_id=rollback_id,
-                status=StatusEnum.COMPLETED,
-                rolled_back_changes=rollback_result.get("changes", []),
-                timestamp=datetime.utcnow()
-            )
+            message="Rollback completed successfully",
+            correlation_id=correlation_id,
+            data=result
         )
         
+    except ValueError as e:
+        return error_response(
+            code="VERSION_NOT_FOUND",
+            message=str(e),
+            correlation_id=correlation_id
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Rollback failed: {str(e)}")
+        logger.error(
+            "Rollback error",
+            user_id=current_user.id,
+            correlation_id=correlation_id,
+            error=str(e),
+            exc_info=True
+        )
+        return error_response(
+            code="ROLLBACK_ERROR",
+            message="Failed to rollback",
+            correlation_id=correlation_id
+        )
 
-@router.get("/view/{preview_id}", response_class=HTMLResponse)
-async def view_preview(
-    preview_id: str,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    プレビュー表示
+@router.get(
+    "/health",
+    response_model=BaseResponse[dict],
+    summary="Preview service health check"
+)
+async def health_check(req: Request) -> BaseResponse[dict]:
+    """Check preview service health"""
+    correlation_id = get_correlation_id(req)
     
-    プレビューをHTML形式で表示します。
-    """
-    try:
-        # プレビューの取得
-        preview = await preview_engine.get_preview(preview_id)
-        if not preview:
-            raise HTTPException(status_code=404, detail="Preview not found")
-        
-        # サニタイズされたHTMLを生成
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Preview - {preview_id}</title>
-            <style>
-                {preview.css}
-                
-                /* プレビュー用の追加スタイル */
-                .preview-banner {{
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    background: #4caf50;
-                    color: white;
-                    padding: 10px;
-                    text-align: center;
-                    z-index: 9999;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="preview-banner">
-                プレビューモード - ID: {preview_id} | Version: {preview.version}
-            </div>
-            <div style="margin-top: 50px;">
-                {preview.html}
-            </div>
-        </body>
-        </html>
-        """
-        
-        return HTMLResponse(content=html_content)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preview rendering failed: {str(e)}")
-
-@router.get("/history/{preview_id}", response_model=BaseResponse[List[PreviewHistory]])
-async def get_preview_history(
-    preview_id: str,
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    プレビュー履歴取得
-    
-    プレビューのバージョン履歴を取得します。
-    """
-    # TODO: データベースから実際の履歴を取得
-    history = await preview_engine.get_history(preview_id)
+    health_data = {
+        "service": "preview",
+        "status": "healthy",
+        "components": {
+            "sandbox_engine": "healthy",
+            "version_control": "healthy",
+            "renderer": "healthy"
+        },
+        "stats": {
+            "cached_previews": len(preview_storage),
+            "max_versions": preview_engine.max_versions
+        }
+    }
     
     return BaseResponse(
         success=True,
-        data=history
+        correlation_id=correlation_id,
+        data=health_data
     )
-
-@router.get("/sessions", response_model=BaseResponse[PaginatedResponse[PreviewSession]])
-async def get_preview_sessions(
-    pagination: PaginationParams = Depends(),
-    token_data: TokenData = Depends(JWTManager.verify_token)
-):
-    """
-    プレビューセッション一覧
-    
-    ユーザーのプレビューセッション一覧を取得します。
-    """
-    # TODO: データベースから実際のセッションを取得
-    mock_sessions = [
-        PreviewSession(
-            session_id=str(uuid.uuid4()),
-            user_id=token_data.user_id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-            preview_count=3,
-            apply_count=1,
-            rollback_count=0,
-            metadata={}
-        )
-    ]
-    
-    response = PaginatedResponse(
-        items=mock_sessions,
-        total=1,
-        page=pagination.page,
-        per_page=pagination.per_page,
-        pages=1,
-        has_next=False,
-        has_prev=False
-    )
-    
-    return BaseResponse(
-        success=True,
-        data=response
-    )
-
-# ヘルパー関数
-async def update_preview_session(session_id: str, user_id: str):
-    """プレビューセッションの更新"""
-    # TODO: データベースでセッション統計を更新
-    pass
-
-async def log_apply_action(apply_id: str, preview_id: str, user_id: str):
-    """適用アクションのログ記録"""
-    # TODO: 監査ログをデータベースに記録
-    pass
-
-async def log_rollback_action(rollback_id: str, apply_id: str, user_id: str, reason: str):
-    """ロールバックアクションのログ記録"""
-    # TODO: 監査ログをデータベースに記録
-    pass
