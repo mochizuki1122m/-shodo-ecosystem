@@ -20,4 +20,8 @@ COPY . .
 EXPOSE 8000
 
 # サーバー起動
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# 本番環境用（フル機能）
+# CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# 開発環境用（簡易サーバー）
+CMD ["python", "simple_server.py"]
