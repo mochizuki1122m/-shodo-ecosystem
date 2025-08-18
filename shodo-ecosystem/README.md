@@ -42,6 +42,16 @@ The platform consists of seven core layers:
 
 ## Key Features
 
+### LPR (Limited Proxy Rights) Security System
+
+The platform includes a state-of-the-art security system for safe proxy execution:
+
+- **Visible Login Detection**: Playwright-based headful browser authentication
+- **Limited Proxy Rights**: Time-bound, scope-limited tokens for delegated access
+- **Multi-Layer Defense**: 5-layer security architecture with device binding
+- **Audit Trail**: Tamper-proof hash-chained audit logs with digital signatures
+- **Zero Trust**: Every request is verified against multiple security criteria
+
 ### Natural Language Processing
 
 The system employs a sophisticated dual-path analysis engine that processes Japanese natural language commands:
