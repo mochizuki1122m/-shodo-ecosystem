@@ -1,49 +1,99 @@
 {
   "name": "shodo-ecosystem",
   "version": "1.0.0",
+  "description": "Shodo Ecosystem - SaaS Integration Platform",
   "private": true,
-  "description": "AI-powered SaaS integration platform",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "ai-server"
+  ],
   "scripts": {
-    "dev": "concurrently -n \"backend,frontend,ai\" -c \"yellow,cyan,magenta\" \"pnpm run dev:backend\" \"pnpm run dev:frontend\" \"pnpm run dev:ai\"",
-    "dev:backend": "cd backend && pnpm run dev",
-    "dev:frontend": "cd frontend && pnpm run dev",
-    "dev:ai": "pnpm run ai:ollama",
-    "ai:ollama": "cd ai-server && pnpm run ollama",
-    "ai:vllm": "cd ai-server && pnpm run vllm",
-    "build": "pnpm run build:frontend && pnpm run build:backend",
-    "build:frontend": "cd frontend && pnpm run build",
-    "build:backend": "cd backend && pnpm run build",
-    "start": "pm2 start ecosystem.config.js",
-    "stop": "pm2 stop ecosystem.config.js",
-    "restart": "pm2 restart ecosystem.config.js",
-    "logs": "pm2 logs",
-    "setup": "pnpm run setup:deps && pnpm run setup:db && pnpm run setup:ollama",
-    "setup:deps": "pnpm install",
-    "setup:db": "pnpm run db:start && pnpm run db:migrate",
-    "setup:ollama": "ollama pull llama2:7b-chat && ollama pull codellama:7b",
-    "setup:vllm": "cd ai-server && pnpm run setup:vllm",
-    "db:start": "pg_ctl start -D ~/.asdf/installs/postgres/15.5/data || true",
-    "db:stop": "pg_ctl stop -D ~/.asdf/installs/postgres/15.5/data",
-    "db:migrate": "cd backend && pnpm run migrate",
-    "redis:start": "redis-server --daemonize yes",
-    "redis:stop": "redis-cli shutdown",
-    "test": "pnpm run test:unit && pnpm run test:integration",
-    "test:unit": "pnpm -r run test:unit",
-    "test:integration": "pnpm -r run test:integration",
-    "clean": "pnpm -r run clean && rm -rf node_modules",
-    "systemd:install": "sudo cp ./systemd/*.service /etc/systemd/system/ && sudo systemctl daemon-reload",
-    "systemd:enable": "sudo systemctl enable shodo-backend shodo-frontend shodo-ai",
-    "systemd:start": "sudo systemctl start shodo-backend shodo-frontend shodo-ai",
-    "systemd:status": "sudo systemctl status shodo-backend shodo-frontend shodo-ai"
+    "install": "pnpm install",
+    "dev": "docker-compose up -d",
+    "start": "docker-compose up",
+    "stop": "docker-compose down",
+    "build": "docker-compose build",
+    "clean": "docker-compose down -v && rm -rf node_modules */node_modules",
+    "test": "pnpm run test:unit && pnpm run test:integration && pnpm run test:e2e",
+    "test:unit": "pnpm run test:unit:backend && pnpm run test:unit:frontend",
+    "test:unit:backend": "cd backend && pytest tests/ -v -m unit",
+    "test:unit:frontend": "cd frontend && npm test -- --coverage",
+    "test:integration": "cd backend && pytest tests/ -v -m integration",
+    "test:e2e": "cd e2e && npx playwright test",
+    "test:e2e:ui": "cd e2e && npx playwright test --ui",
+    "test:e2e:debug": "cd e2e && npx playwright test --debug",
+    "lint": "pnpm run lint:backend && pnpm run lint:frontend",
+    "lint:backend": "cd backend && pylint src/ --rcfile=.pylintrc",
+    "lint:frontend": "cd frontend && npm run lint",
+    "format": "pnpm run format:backend && pnpm run format:frontend",
+    "format:backend": "cd backend && black src/ tests/ && isort src/ tests/",
+    "format:frontend": "cd frontend && npm run format",
+    "type-check": "pnpm run type-check:backend && pnpm run type-check:frontend",
+    "type-check:backend": "cd backend && mypy src/ --config-file mypy.ini",
+    "type-check:frontend": "cd frontend && npm run type-check",
+    "security-check": "pnpm audit && cd backend && safety check && cd ../frontend && npm audit",
+    "coverage": "pnpm run coverage:backend && pnpm run coverage:frontend",
+    "coverage:backend": "cd backend && pytest tests/ --cov=src --cov-report=html --cov-report=term",
+    "coverage:frontend": "cd frontend && npm test -- --coverage --watchAll=false",
+    "docs": "pnpm run docs:build",
+    "docs:build": "cd docs && npm run build",
+    "docs:serve": "cd docs && npm run serve",
+    "migrate": "cd backend && alembic upgrade head",
+    "migrate:create": "cd backend && alembic revision --autogenerate -m",
+    "migrate:rollback": "cd backend && alembic downgrade -1",
+    "seed": "cd backend && python scripts/seed_data.py",
+    "backup": "cd scripts && ./backup.sh",
+    "restore": "cd scripts && ./restore.sh",
+    "monitor": "docker-compose logs -f",
+    "health": "curl -f http://localhost/api/v1/health || exit 1",
+    "metrics": "curl -f http://localhost/metrics || exit 1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.1",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.6",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
     "concurrently": "^8.2.2",
-    "pm2": "^5.3.0",
-    "@types/node": "^20.11.0"
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.3.1",
+    "wait-on": "^7.2.0"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.14.1"
+  "packageManager": "pnpm@8.14.0",
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{py}": [
+      "black",
+      "isort",
+      "pylint"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "pnpm run test:unit"
+    }
+  }
 }
