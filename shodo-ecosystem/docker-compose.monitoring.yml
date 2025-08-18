@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: shodo-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - shodo-network
+    restart: unless-stopped
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: shodo-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
+    networks:
+      - shodo-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: shodo-redis-exporter
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    ports:
+      - "9121:9121"
+    networks:
+      - shodo-network
+    restart: unless-stopped
+
+  # Postgres Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: shodo-postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://shodo:shodo_pass@postgres:5432/shodo?sslmode=disable
+    ports:
+      - "9187:9187"
+    networks:
+      - shodo-network
+    restart: unless-stopped
+
+  # Flower (Celery監視)
+  flower:
+    image: mher/flower:latest
+    container_name: shodo-flower
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    networks:
+      - shodo-network
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  shodo-network:
+    external: true

@@ -1,0 +1,103 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "shodo-ecosystem",
+    "title": "Shodo Ecosystem Dashboard",
+    "tags": ["shodo", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "type": "graph",
+        "title": "HTTP Request Rate",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "type": "graph",
+        "title": "Response Time",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "type": "graph",
+        "title": "Active Users",
+        "targets": [
+          {
+            "expr": "active_users",
+            "legendFormat": "Active Users"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "type": "graph",
+        "title": "Cache Hit Rate",
+        "targets": [
+          {
+            "expr": "rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))",
+            "legendFormat": "Hit Rate"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "type": "graph",
+        "title": "Database Connections",
+        "targets": [
+          {
+            "expr": "pg_stat_activity_count",
+            "legendFormat": "Active Connections"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "type": "graph",
+        "title": "Celery Tasks",
+        "targets": [
+          {
+            "expr": "celery_tasks_total",
+            "legendFormat": "{{state}}"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+        "type": "table",
+        "title": "Error Logs",
+        "targets": [
+          {
+            "expr": "increase(error_logs_total[1h])",
+            "format": "table",
+            "instant": true
+          }
+        ]
+      }
+    ]
+  }
+}

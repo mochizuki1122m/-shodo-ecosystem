@@ -1,0 +1,52 @@
+# Prometheus設定ファイル
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'shodo-ecosystem'
+
+scrape_configs:
+  # バックエンドメトリクス
+  - job_name: 'backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Redisエクスポーター
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # PostgreSQLエクスポーター
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Nginxエクスポーター
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+
+  # Node.jsアプリケーション（フロントエンド）
+  - job_name: 'frontend'
+    static_configs:
+      - targets: ['frontend:3000']
+    metrics_path: '/metrics'
+
+  # Celeryワーカー
+  - job_name: 'celery'
+    static_configs:
+      - targets: ['flower:5555']
+    metrics_path: '/metrics'
+
+# アラートルール
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Alertmanager設定
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
