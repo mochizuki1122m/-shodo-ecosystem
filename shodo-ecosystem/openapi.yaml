@@ -1,0 +1,588 @@
+openapi: 3.1.0
+info:
+  title: Shodo Ecosystem API
+  version: 1.0.0
+  description: Enterprise-grade SaaS integration platform with NLP
+  contact:
+    name: Shodo Team
+    email: support@shodo.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.shodo.example.com
+    description: Production
+  - url: https://staging-api.shodo.example.com
+    description: Staging
+  - url: http://localhost:8000
+    description: Development
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/auth/login:
+    post:
+      summary: User login
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /api/v1/nlp/analyze:
+    post:
+      summary: Analyze natural language input
+      operationId: analyzeText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NLPRequest'
+      responses:
+        '200':
+          description: Analysis complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NLPResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/v1/preview/generate:
+    post:
+      summary: Generate preview
+      operationId: generatePreview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewRequest'
+      responses:
+        '200':
+          description: Preview generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewResponse'
+
+  /api/v1/preview/{preview_id}/refine:
+    post:
+      summary: Refine existing preview
+      operationId: refinePreview
+      parameters:
+        - name: preview_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefineRequest'
+      responses:
+        '200':
+          description: Preview refined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewResponse'
+
+  /api/v1/lpr/issue:
+    post:
+      summary: Issue LPR token
+      operationId: issueLPRToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LPRIssueRequest'
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LPRTokenResponse'
+
+  /api/v1/lpr/verify:
+    post:
+      summary: Verify LPR token
+      operationId: verifyLPRToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LPRVerifyRequest'
+      responses:
+        '200':
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LPRVerifyResponse'
+
+  /api/v1/lpr/revoke:
+    post:
+      summary: Revoke LPR token
+      operationId: revokeLPRToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LPRRevokeRequest'
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    BaseResponse:
+      type: object
+      required:
+        - success
+        - timestamp
+        - correlation_id
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+          format: uuid
+        data:
+          type: object
+
+    ErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            error:
+              type: object
+              properties:
+                code:
+                  type: string
+                message:
+                  type: string
+                details:
+                  type: array
+                  items:
+                    type: object
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        connections:
+          type: object
+          properties:
+            database:
+              type: boolean
+            redis:
+              type: boolean
+            ai_server:
+              type: boolean
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        device_fingerprint:
+          type: string
+
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                refresh_token:
+                  type: string
+                token_type:
+                  type: string
+                  default: Bearer
+                expires_in:
+                  type: integer
+
+    RefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+
+    TokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                access_token:
+                  type: string
+                expires_in:
+                  type: integer
+
+    NLPRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          maxLength: 5000
+        context:
+          type: object
+        mode:
+          type: string
+          enum: [dual_path, rule_only, ai_only]
+          default: dual_path
+
+    NLPResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                intent:
+                  type: string
+                confidence:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                entities:
+                  type: object
+                service:
+                  type: string
+                requires_confirmation:
+                  type: boolean
+                suggestions:
+                  type: array
+                  items:
+                    type: string
+                processing_path:
+                  type: string
+                processing_time_ms:
+                  type: number
+
+    PreviewRequest:
+      type: object
+      required:
+        - changes
+        - service_id
+      properties:
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Change'
+        service_id:
+          type: string
+        context:
+          type: object
+
+    Change:
+      type: object
+      required:
+        - type
+        - target
+        - property
+        - new_value
+      properties:
+        type:
+          type: string
+          enum: [style, content, structure, data]
+        target:
+          type: string
+        property:
+          type: string
+        old_value:
+          type: string
+        new_value:
+          type: string
+
+    PreviewResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                version_id:
+                  type: string
+                service:
+                  type: string
+                visual:
+                  type: object
+                  properties:
+                    html:
+                      type: string
+                    css:
+                      type: string
+                    javascript:
+                      type: string
+                    screenshot:
+                      type: string
+                diff:
+                  type: object
+                changes:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Change'
+                confidence:
+                  type: number
+                revert_token:
+                  type: string
+
+    RefineRequest:
+      type: object
+      required:
+        - refinement
+      properties:
+        refinement:
+          type: string
+          maxLength: 1000
+
+    LPRIssueRequest:
+      type: object
+      required:
+        - service
+        - purpose
+        - scopes
+      properties:
+        service:
+          type: string
+        purpose:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: object
+            properties:
+              method:
+                type: string
+                enum: [GET, POST, PUT, DELETE]
+              url_pattern:
+                type: string
+        device_fingerprint:
+          type: string
+        consent:
+          type: boolean
+          default: false
+
+    LPRTokenResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                token:
+                  type: string
+                jti:
+                  type: string
+                expires_at:
+                  type: string
+                  format: date-time
+                scopes:
+                  type: array
+                  items:
+                    type: object
+
+    LPRVerifyRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+        device_fingerprint:
+          type: string
+
+    LPRVerifyResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                valid:
+                  type: boolean
+                jti:
+                  type: string
+                service:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: object
+
+    LPRRevokeRequest:
+      type: object
+      required:
+        - jti
+      properties:
+        jti:
+          type: string
+        reason:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    RateLimited:
+      description: Rate limited
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
