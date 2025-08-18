@@ -185,6 +185,51 @@ class ShodoHandler(BaseHTTPRequestHandler):
             self._set_headers()
             self.wfile.write(json.dumps(response).encode())
             
+        elif parsed_path.path == '/api/v1/preview/generate':
+            changes = data.get('changes', [])
+            context = data.get('context', {})
+            
+            # プレビューID生成
+            preview_id = f"preview_{int(time.time())}"
+            
+            response = {
+                'id': preview_id,
+                'status': 'generated',
+                'changes': changes,
+                'preview_url': f'/api/v1/preview/view/{preview_id}',
+                'created_at': time.time()
+            }
+            
+            self._set_headers()
+            self.wfile.write(json.dumps(response).encode())
+            
+        elif parsed_path.path.startswith('/api/v1/preview/refine/'):
+            preview_id = parsed_path.path.split('/')[-1]
+            refinement = data.get('refinement', '')
+            
+            response = {
+                'id': preview_id,
+                'status': 'refined',
+                'refinement': refinement,
+                'updated_at': time.time()
+            }
+            
+            self._set_headers()
+            self.wfile.write(json.dumps(response).encode())
+            
+        elif parsed_path.path.startswith('/api/v1/preview/apply/'):
+            preview_id = parsed_path.path.split('/')[-1]
+            
+            response = {
+                'id': preview_id,
+                'status': 'applied',
+                'applied_at': time.time(),
+                'message': 'Changes applied successfully'
+            }
+            
+            self._set_headers()
+            self.wfile.write(json.dumps(response).encode())
+            
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({'error': 'Not found'}).encode())

@@ -34,7 +34,7 @@ const ollama = new Ollama({
 
 // vLLM クライアント（OpenAI互換API）
 const vllm = new OpenAI({
-  baseURL: process.env.VLLM_URL || 'http://localhost:8000/v1',
+  baseURL: process.env.VLLM_URL || 'http://localhost:8001/v1',  // ポートを8001に統一
   apiKey: 'dummy', // vLLMはAPIキー不要
 });
 

@@ -49,16 +49,16 @@ services:
       - ./frontend:/app
       - /app/node_modules
     
-  # User-Agent
-  user-agent:
-    build: ./user-agent
-    environment:
-      - PLAYWRIGHT_BROWSERS_PATH=/browsers
-      - API_URL=http://backend:8000
-    volumes:
-      - ./browser-data:/data
-    networks:
-      - shodo-network
+  # User-Agent (コメントアウト: ディレクトリが存在しないため)
+  # user-agent:
+  #   build: ./user-agent
+  #   environment:
+  #     - PLAYWRIGHT_BROWSERS_PATH=/browsers
+  #     - API_URL=http://backend:8000
+  #   volumes:
+  #     - ./browser-data:/data
+  #   networks:
+  #     - shodo-network
     
   # データベース
   postgres:

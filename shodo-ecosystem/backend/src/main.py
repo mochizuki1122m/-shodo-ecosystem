@@ -6,6 +6,7 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from typing import Any, Dict
+from datetime import datetime
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,13 +31,28 @@ async def lifespan(app: FastAPI):
     """アプリケーションのライフサイクル管理"""
     # 起動時
     logger.info("Starting Shodo Ecosystem Backend...")
-    await init_db()
-    logger.info("Database initialized")
+    
+    try:
+        db_status, redis_status = await init_db()
+        if db_status and redis_status:
+            logger.info("All services initialized successfully")
+        elif db_status or redis_status:
+            logger.warning("Running in degraded mode - some services unavailable")
+        else:
+            logger.error("No data stores available - running with in-memory storage only")
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
+        logger.warning("Running without external services")
     
     yield
     
     # 終了時
     logger.info("Shutting down Shodo Ecosystem Backend...")
+    try:
+        from src.services.database import close_db
+        await close_db()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 # FastAPIアプリケーションの作成
 app = FastAPI(
@@ -49,11 +65,19 @@ app = FastAPI(
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://frontend:3000"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-RateLimit-Limit-Minute", "X-RateLimit-Remaining-Minute"]
 )
+
+# セキュリティミドルウェアの設定
+try:
+    from src.middleware.security import setup_security_middleware
+    setup_security_middleware(app, settings)
+except ImportError:
+    logger.warning("Security middleware not available")
 
 # エラーハンドラー
 @app.exception_handler(HTTPException)
@@ -83,11 +107,34 @@ async def root():
 # ヘルスチェック
 @app.get("/health")
 async def health_check():
+    from src.services.database import check_all_connections
+    import httpx
+    
+    # データベース/Redis接続チェック
+    try:
+        db_status = await check_all_connections()
+    except:
+        db_status = {
+            "database": False,
+            "redis": False,
+            "overall": "unhealthy"
+        }
+    
+    # AIサーバー接続チェック
+    ai_status = "unknown"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{settings.vllm_url}/health", timeout=2.0)
+            ai_status = "connected" if response.status_code == 200 else "error"
+    except:
+        ai_status = "disconnected"
+    
     return {
-        "status": "healthy",
-        "database": "connected",
-        "cache": "connected",
-        "ai_server": "connected"
+        "status": db_status["overall"],
+        "database": "connected" if db_status["database"] else "disconnected",
+        "cache": "connected" if db_status["redis"] else "disconnected",
+        "ai_server": ai_status,
+        "timestamp": datetime.utcnow()
     }
 
 # APIルーターの登録
