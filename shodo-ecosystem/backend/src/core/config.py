@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
     redis_decode_responses: bool = Field(default=True, env="REDIS_DECODE_RESPONSES")
     
-    # AIサーバー設定
-    vllm_url: str = Field(default="http://vllm:8001", env="VLLM_URL")
+    # AIサーバー設定（vllm-coreに統一）
+    vllm_url: str = Field(default="http://vllm-core:8001/v1", env="VLLM_URL")
     vllm_timeout: int = Field(default=30, env="VLLM_TIMEOUT")
     model_name: str = Field(default="openai/gpt-oss-20b", env="MODEL_NAME")
     
