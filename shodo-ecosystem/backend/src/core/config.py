@@ -1,233 +1,114 @@
 """
-Enterprise Configuration Management
-Production-ready settings with validation
+統一設定モジュール
+全ての設定をこのファイルに集約
 """
 
 import os
-from typing import List, Optional, Dict, Any
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, validator, SecretStr
-import secrets
+from typing import List, Optional
+from pydantic import BaseSettings, Field
+from functools import lru_cache
 
 class Settings(BaseSettings):
-    """
-    Application settings with strict validation
-    MUST: All secrets from environment/Vault, never hardcoded
-    """
+    """アプリケーション設定"""
     
-    # Application
-    app_name: str = "Shodo Ecosystem"
-    app_version: str = "1.0.0"
-    environment: str = Field(default="development", pattern="^(development|staging|production)$")
-    debug: bool = Field(default=False)
+    # 基本設定
+    app_name: str = Field(default="Shodo Ecosystem", env="APP_NAME")
+    app_version: str = Field(default="5.0.0", env="APP_VERSION")
+    debug: bool = Field(default=False, env="DEBUG")
+    environment: str = Field(default="development", env="ENVIRONMENT")
     
-    # MUST: Production debug=False
-    @validator('debug')
-    def validate_debug(cls, v, values):
-        if values.get('environment') == 'production' and v:
-            raise ValueError("DEBUG must be False in production")
-        return v
+    # サーバー設定
+    host: str = Field(default="0.0.0.0", env="HOST")
+    port: int = Field(default=8000, env="PORT")
+    reload: bool = Field(default=False, env="RELOAD")
+    workers: int = Field(default=1, env="WORKERS")
     
-    # Server
-    host: str = "0.0.0.0"
-    port: int = 8000
-    workers: int = Field(default=4, ge=1, le=16)
-    reload: bool = False
-    
-    # Security - MUST: Strong secrets
-    secret_key: SecretStr = Field(
-        default_factory=lambda: SecretStr(secrets.token_urlsafe(64)),
-        min_length=64
-    )
-    jwt_secret_key: SecretStr = Field(
-        default_factory=lambda: SecretStr(secrets.token_urlsafe(64)),
-        min_length=64
-    )
-    jwt_algorithm: str = "RS256"
-    jwt_expire_minutes: int = Field(default=60, le=60)  # Max 1 hour
-    encryption_key: SecretStr = Field(
-        default_factory=lambda: SecretStr(secrets.token_urlsafe(32)),
-        min_length=32
-    )
-    
-    # CORS - MUST: Strict in production
-    cors_origins: List[str] = Field(
-        default=["http://localhost:3000"],
-    )
-    cors_allow_credentials: bool = True
-    cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    cors_allow_headers: List[str] = ["*"]
-    
-    @validator('cors_origins')
-    def validate_cors(cls, v, values):
-        if values.get('environment') == 'production':
-            # MUST: No wildcards in production
-            if any(origin in ['*', 'null'] for origin in v):
-                raise ValueError("Wildcard CORS origins not allowed in production")
-        return v
-    
-    # Trusted Hosts - MUST: Explicit allowlist
-    trusted_hosts: List[str] = Field(
-        default=["localhost", "127.0.0.1"]
-    )
-    
-    # Database
+    # データベース設定
     database_url: str = Field(
-        default="postgresql+asyncpg://shodo:shodo_pass@postgres:5432/shodo",
-        pattern=r"^postgresql\+asyncpg://.*"
+        default="postgresql://shodo:shodo_pass@postgres:5432/shodo",
+        env="DATABASE_URL"
     )
-    database_pool_size: int = Field(default=20, ge=5, le=100)
-    database_max_overflow: int = Field(default=10, ge=0, le=50)
-    database_pool_timeout: int = Field(default=30, ge=10, le=60)
-    database_echo: bool = False
+    database_pool_size: int = Field(default=10, env="DATABASE_POOL_SIZE")
+    database_max_overflow: int = Field(default=20, env="DATABASE_MAX_OVERFLOW")
     
-    # Redis
-    redis_url: str = Field(
-        default="redis://redis:6379/0",
-        pattern=r"^redis://.*"
+    # Redis設定
+    redis_url: str = Field(default="redis://redis:6379", env="REDIS_URL")
+    redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
+    redis_decode_responses: bool = Field(default=True, env="REDIS_DECODE_RESPONSES")
+    
+    # AIサーバー設定
+    vllm_url: str = Field(default="http://vllm:8001", env="VLLM_URL")
+    vllm_timeout: int = Field(default=30, env="VLLM_TIMEOUT")
+    model_name: str = Field(default="openai/gpt-oss-20b", env="MODEL_NAME")
+    
+    # セキュリティ設定
+    jwt_secret_key: str = Field(
+        default="change-this-in-production-to-a-secure-random-string",
+        env="JWT_SECRET_KEY"
     )
-    redis_pool_size: int = Field(default=10, ge=5, le=50)
-    redis_decode_responses: bool = True
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expiration_hours: int = Field(default=24, env="JWT_EXPIRATION_HOURS")
     
-    # AI Server
-    vllm_url: str = Field(
-        default="http://vllm:8001",
-        pattern=r"^https?://.*"
-    )
-    vllm_timeout: int = Field(default=30, ge=10, le=120)
-    vllm_max_retries: int = Field(default=3, ge=1, le=5)
-    inference_engine: str = Field(
-        default="vllm",
-        pattern="^(vllm|ollama)$"
-    )
-    
-    # Monitoring
-    metrics_enabled: bool = True
-    tracing_enabled: bool = True
-    otlp_endpoint: str = Field(
-        default="http://otel-collector:4317",
-        pattern=r"^https?://.*"
-    )
-    service_name: str = "shodo-backend"
-    
-    # Rate Limiting
-    rate_limit_enabled: bool = True
-    rate_limit_default: int = Field(default=100, ge=10, le=1000)  # per minute
-    rate_limit_burst: int = Field(default=150, ge=10, le=1500)
-    
-    # Logging
-    log_level: str = Field(
-        default="INFO",
-        pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$"
-    )
-    log_format: str = "json"  # json or text
-    log_file: Optional[str] = None
-    
-    # File Upload
-    max_upload_size: int = Field(default=10485760, le=104857600)  # 10MB default, 100MB max
-    allowed_upload_extensions: List[str] = [".jpg", ".jpeg", ".png", ".pdf", ".csv", ".xlsx"]
-    
-    # Session
-    session_lifetime_seconds: int = Field(default=3600, ge=300, le=86400)  # 5min to 24h
-    session_cookie_secure: bool = True
-    session_cookie_httponly: bool = True
-    session_cookie_samesite: str = Field(
-        default="lax",
-        pattern="^(lax|strict|none)$"
+    # 暗号化設定
+    encryption_key: str = Field(
+        default="change-this-in-production-to-a-secure-random-string",
+        env="ENCRYPTION_KEY"
     )
     
-    # Feature Flags
-    feature_lpr_enabled: bool = True
-    feature_nlp_enabled: bool = True
-    feature_preview_enabled: bool = True
-    feature_mcp_enabled: bool = True
+    # CORS設定
+    cors_origins: List[str] = Field(
+        default=["http://localhost:3000", "http://localhost", "http://frontend:3000"],
+        env="CORS_ORIGINS"
+    )
+    cors_allow_credentials: bool = Field(default=True, env="CORS_ALLOW_CREDENTIALS")
+    cors_allow_methods: List[str] = Field(default=["*"], env="CORS_ALLOW_METHODS")
+    cors_allow_headers: List[str] = Field(default=["*"], env="CORS_ALLOW_HEADERS")
     
-    # External Services (from Vault/KMS in production)
-    shopify_api_key: Optional[SecretStr] = None
-    shopify_api_secret: Optional[SecretStr] = None
-    stripe_api_key: Optional[SecretStr] = None
-    gmail_client_id: Optional[SecretStr] = None
-    gmail_client_secret: Optional[SecretStr] = None
+    # レート制限設定
+    rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
+    rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
+    rate_limit_per_hour: int = Field(default=1000, env="RATE_LIMIT_PER_HOUR")
     
-    # Vault/KMS Configuration
-    vault_enabled: bool = Field(default=False)
-    vault_url: Optional[str] = None
-    vault_token: Optional[SecretStr] = None
-    vault_mount_point: str = "secret"
-    vault_path: str = "shodo"
-    
-    @validator('vault_enabled')
-    def validate_vault(cls, v, values):
-        if values.get('environment') == 'production' and not v:
-            raise ValueError("Vault must be enabled in production")
-        return v
-    
-    # Health Check
-    health_check_enabled: bool = True
-    health_check_path: str = "/health"
-    
-    # SLA/SLO Targets
-    slo_availability_target: float = Field(default=99.95, ge=99.0, le=100.0)
-    slo_latency_p95_ms: int = Field(default=300, ge=100, le=1000)
-    slo_error_rate_percent: float = Field(default=0.1, ge=0.0, le=1.0)
-    
-    model_config = SettingsConfigDict(
-        env_file=".env" if os.getenv("ENVIRONMENT") != "production" else None,
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="forbid"  # Reject unknown fields
+    # ログ設定
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    log_format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        env="LOG_FORMAT"
     )
     
-    def get_database_url(self, sync: bool = False) -> str:
-        """Get database URL for sync or async operations"""
-        if sync:
-            return self.database_url.replace("+asyncpg", "")
-        return self.database_url
+    # LPR設定
+    lpr_ttl_hours: int = Field(default=2, env="LPR_TTL_HOURS")
+    lpr_device_binding: bool = Field(default=True, env="LPR_DEVICE_BINDING")
+    lpr_scope_minimization: bool = Field(default=True, env="LPR_SCOPE_MINIMIZATION")
+    lpr_audit_logging: bool = Field(default=True, env="LPR_AUDIT_LOGGING")
     
-    def get_redis_settings(self) -> Dict[str, Any]:
-        """Get Redis connection settings"""
-        return {
-            "url": self.redis_url,
-            "encoding": "utf-8",
-            "decode_responses": self.redis_decode_responses,
-            "max_connections": self.redis_pool_size,
-        }
+    # キャッシュ設定
+    cache_ttl_seconds: int = Field(default=300, env="CACHE_TTL_SECONDS")
+    cache_enabled: bool = Field(default=True, env="CACHE_ENABLED")
     
-    def is_production(self) -> bool:
-        """Check if running in production"""
-        return self.environment == "production"
+    # 外部サービス設定
+    shopify_api_key: Optional[str] = Field(default=None, env="SHOPIFY_API_KEY")
+    shopify_api_secret: Optional[str] = Field(default=None, env="SHOPIFY_API_SECRET")
+    stripe_api_key: Optional[str] = Field(default=None, env="STRIPE_API_KEY")
+    gmail_api_key: Optional[str] = Field(default=None, env="GMAIL_API_KEY")
+    slack_api_key: Optional[str] = Field(default=None, env="SLACK_API_KEY")
     
-    def is_development(self) -> bool:
-        """Check if running in development"""
-        return self.environment == "development"
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+        
+        # 環境変数のリスト形式対応
+        @classmethod
+        def parse_env_var(cls, field_name: str, raw_val: str):
+            if field_name == "cors_origins":
+                return [x.strip() for x in raw_val.split(",")]
+            return raw_val
 
-# Create settings instance
-settings = Settings()
+@lru_cache()
+def get_settings() -> Settings:
+    """設定のシングルトンインスタンスを取得"""
+    return Settings()
 
-# Validate critical settings at startup
-def validate_settings():
-    """Validate settings meet requirements"""
-    errors = []
-    
-    if settings.is_production():
-        # MUST requirements for production
-        if settings.debug:
-            errors.append("DEBUG must be False in production")
-        
-        if not settings.vault_enabled:
-            errors.append("Vault must be enabled in production")
-        
-        if "*" in settings.cors_origins:
-            errors.append("Wildcard CORS not allowed in production")
-        
-        if not settings.session_cookie_secure:
-            errors.append("Session cookies must be secure in production")
-        
-        if settings.jwt_expire_minutes > 60:
-            errors.append("JWT expiry must be <= 60 minutes")
-    
-    if errors:
-        raise ValueError(f"Settings validation failed: {'; '.join(errors)}")
-
-# Export
-__all__ = ['settings', 'Settings', 'validate_settings']
+# グローバル設定インスタンス
+settings = get_settings()

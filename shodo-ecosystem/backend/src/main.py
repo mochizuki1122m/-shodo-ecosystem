@@ -16,7 +16,7 @@ import uvicorn
 import structlog
 
 # 設定
-from .utils.config import settings
+from .core.config import settings
 
 # データベース
 from .services.database import init_db, close_db, check_all_connections
