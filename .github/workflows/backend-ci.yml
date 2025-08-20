@@ -14,19 +14,10 @@ jobs:
   backend-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Show Docker versions
-        run: |
-          docker --version || true
-          docker compose version || true
-          docker-compose --version || true
 
       - name: Ensure docker compose available
         run: |
@@ -38,25 +29,18 @@ jobs:
           else
             sudo apt-get update
             sudo apt-get install -y docker-compose-plugin
-            if docker compose version >/dev/null 2>&1; then
-              echo "COMPOSE=docker compose" >> $GITHUB_ENV
-            else
-              echo "docker compose is still unavailable" >&2
-              exit 1
-            fi
+            docker compose version
+            echo "COMPOSE=docker compose" >> $GITHUB_ENV
           fi
 
       - name: Verify repository structure
         run: |
           ls -la
           ls -la shodo-ecosystem || true
-          ls -la shodo-ecosystem/backend || true
-          ls -la shodo-ecosystem/ai-server || true
           test -f shodo-ecosystem/docker-compose.yml
 
       - name: Create backend .env (development-like)
         run: |
-          mkdir -p shodo-ecosystem/backend
           cat > shodo-ecosystem/backend/.env <<'EOF'
           ENVIRONMENT=development
           DEBUG=true
@@ -69,14 +53,20 @@ jobs:
           LPR_ENFORCER_ENABLED=true
           ALLOW_LPR_TOKEN_QUERY=false
           EOF
-          echo "---- compose file head ----"
-          sed -n '1,80p' shodo-ecosystem/docker-compose.yml || true
-          echo "---------------------------"
+
+      - name: Validate compose config
+        working-directory: shodo-ecosystem
+        run: |
+          $COMPOSE config
 
       - name: Build images (backend, vllm)
         working-directory: shodo-ecosystem
         run: |
           set -e
+          echo "----- Dockerfile (backend) head -----"
+          sed -n '1,120p' backend/Dockerfile || true
+          echo "----- requirements (backend) head -----"
+          sed -n '1,120p' backend/requirements.txt || true
           $COMPOSE build --progress=plain backend vllm
 
       - name: Start infra and backend
@@ -89,14 +79,11 @@ jobs:
           for i in {1..60}; do
             STATUS=$(docker inspect -f '{{.State.Health.Status}}' "$BID" 2>/dev/null || echo "starting")
             echo "backend health: $STATUS"
-            if [ "$STATUS" = "healthy" ]; then
-              break
-            fi
+            if [ "$STATUS" = "healthy" ]; then break; fi
             sleep 2
           done
           $COMPOSE ps
-          echo "Recent backend logs:"
-          $COMPOSE logs --no-color --tail=80 backend || true
+          $COMPOSE logs --no-color --tail=120 backend || true
 
       - name: Run LPR tests inside backend container
         working-directory: shodo-ecosystem
