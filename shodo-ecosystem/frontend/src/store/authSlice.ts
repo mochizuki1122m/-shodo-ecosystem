@@ -26,8 +26,12 @@ export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }: { email: string; password: string }) => {
     const response = await apiLogin(email, password);
-    localStorage.setItem('authToken', response.token);
-    return response.user;
+    // BaseResponse形式に対応: response.data.access_token
+    if (response.success && response.data) {
+      localStorage.setItem('authToken', response.data.access_token);
+      return response.data.user;
+    }
+    throw new Error(response.error || 'Login failed');
   }
 );
 

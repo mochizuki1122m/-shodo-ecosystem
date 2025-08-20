@@ -461,6 +461,6 @@ async def get_lpr_service() -> LPRService:
     if lpr_service is None:
         # Initialize with Redis from app context
         from ...services.database import get_redis
-        redis = await get_redis()
+        redis = get_redis()  # Synchronous function, no await needed
         lpr_service = LPRService(redis)
     return lpr_service
