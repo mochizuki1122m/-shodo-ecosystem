@@ -1,0 +1,30 @@
+version: '3.9'
+
+services:
+  # CI専用の軽量モックvLLMサービス
+  vllm-mock:
+    image: hashicorp/http-echo:0.2.3
+    command: ["-listen=:8001", "-text={\"model\":\"mock\",\"engine\":\"mock\",\"status\":\"ok\"}"]
+    networks:
+      - shodo-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8001 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    environment:
+      - VLLM_URL=http://vllm-mock:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vllm-mock:
+        condition: service_healthy
+
+networks:
+  shodo-internal:
+    external: false
