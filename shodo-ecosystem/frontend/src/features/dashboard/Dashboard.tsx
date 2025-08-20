@@ -26,8 +26,14 @@ import {
   TrendingUp as TrendingUpIcon,
   Speed as SpeedIcon,
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
-import { getDetectedServices } from '../../services/api';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { startVisibleLogin, issueLprToken } from '../../services/api';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import Alert from '@mui/material/Alert';
 
 // サービスアイコンマッピング
 const serviceIcons: Record<string, React.ReactNode> = {
@@ -90,6 +96,59 @@ const mockServices = [
 ];
 
 const Dashboard: React.FC = () => {
+  const [connectOpen, setConnectOpen] = React.useState(false);
+  const [targetService, setTargetService] = React.useState<string>('');
+  const [loginUrl, setLoginUrl] = React.useState<string>('');
+  const [consent, setConsent] = React.useState<boolean>(true);
+  const [loadingMsg, setLoadingMsg] = React.useState<string>('');
+  const [errorMsg, setErrorMsg] = React.useState<string>('');
+
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      setErrorMsg('');
+      setLoadingMsg('ログイン検出を開始しています...');
+      // 1) 可視ログイン
+      const visible = await startVisibleLogin({
+        service_name: targetService,
+        login_url: loginUrl,
+        timeout: 120,
+      });
+      if (!visible?.success || !visible?.session_id) {
+        throw new Error(visible?.error || '可視ログインに失敗しました');
+      }
+      setLoadingMsg('LPRトークンを発行しています...');
+      // 2) LPR発行
+      const deviceFingerprint = {
+        user_agent: navigator.userAgent,
+        accept_language: navigator.language,
+        screen_resolution: `${window.screen.width}x${window.screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      } as any;
+      const issue = await issueLprToken({
+        session_id: visible.session_id,
+        service: targetService,
+        scopes: [
+          { method: '*', url_pattern: `/api/v1/${targetService}/` },
+        ],
+        origins: [window.location.origin],
+        ttl_seconds: 3600,
+        device_fingerprint: deviceFingerprint,
+        purpose: `${targetService} 連携操作`,
+        consent,
+      });
+      if (!issue?.success || !issue?.token) {
+        throw new Error(issue?.error || 'LPRトークンの発行に失敗しました');
+      }
+      // 3) 保存
+      localStorage.setItem('lprToken', issue.token);
+      setLoadingMsg('連携が完了しました');
+      setTimeout(() => setConnectOpen(false), 800);
+    },
+    onError: (e: any) => {
+      setLoadingMsg('');
+      setErrorMsg(e?.message || '連携に失敗しました');
+    },
+  });
   // 実際のAPIコール（現在はモックデータを使用）
   const { data: services = mockServices, isLoading } = useQuery({
     queryKey: ['services'],
@@ -232,7 +291,7 @@ const Dashboard: React.FC = () => {
                       <Button size="small" color="error">切断</Button>
                     </>
                   ) : (
-                    <Button size="small" variant="contained">
+                    <Button size="small" variant="contained" onClick={() => { setTargetService(service.name.toLowerCase()); setLoginUrl(''); setErrorMsg(''); setLoadingMsg(''); setConnectOpen(true); }}>
                       接続
                     </Button>
                   )}
@@ -242,6 +301,32 @@ const Dashboard: React.FC = () => {
           ))}
         </Grid>
       )}
+      <Dialog open={connectOpen} onClose={() => setConnectOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>サービス接続（LPR）</DialogTitle>
+        <DialogContent>
+          {errorMsg && (<Alert severity="error" sx={{ mb: 2 }}>{errorMsg}</Alert>)}
+          {loadingMsg && (<Alert severity="info" sx={{ mb: 2 }}>{loadingMsg}</Alert>)}
+          <TextField
+            label="サービス名"
+            value={targetService}
+            onChange={(e) => setTargetService(e.target.value)}
+            fullWidth
+            sx={{ mt: 1 }}
+          />
+          <TextField
+            label="ログインURL"
+            value={loginUrl}
+            onChange={(e) => setLoginUrl(e.target.value)}
+            fullWidth
+            sx={{ mt: 2 }}
+            placeholder="https://example.com/login"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConnectOpen(false)}>キャンセル</Button>
+          <Button variant="contained" onClick={() => connectMutation.mutate()} disabled={connectMutation.isPending || !targetService || !loginUrl}>開始</Button>
+        </DialogActions>
+      </Dialog>
       
       {/* 使い方ガイド */}
       <Paper sx={{ p: 3, mt: 4, bgcolor: 'info.main', color: 'white' }}>

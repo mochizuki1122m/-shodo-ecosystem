@@ -122,4 +122,45 @@ export const invokeTool = async (toolId: string, params: any) => {
   return response.data.data || response.data;
 };
 
+// LPR: Visible Login -> Issue Token
+export interface VisibleLoginRequestBody {
+  service_name: string;
+  login_url: string;
+  auto_fill?: Record<string, string>;
+  custom_rules?: Array<Record<string, any>>;
+  timeout?: number; // seconds
+}
+
+export const startVisibleLogin = async (
+  body: VisibleLoginRequestBody
+) => {
+  const response = await apiClient.post('/api/v1/lpr/visible-login', body);
+  return response.data; // { success, session_id, confidence, method, error? }
+};
+
+export interface LPRScopeInput {
+  method: string; // GET/POST/PUT/DELETE/*
+  url_pattern: string; // e.g. /api/v1/*
+  constraints?: Record<string, any>;
+}
+
+export interface IssueLprRequestBody {
+  session_id: string;
+  service: string;
+  scopes: LPRScopeInput[];
+  origins: string[];
+  ttl_seconds?: number;
+  policy?: Record<string, any>;
+  device_fingerprint: Record<string, any>;
+  purpose: string;
+  consent: boolean;
+}
+
+export const issueLprToken = async (
+  body: IssueLprRequestBody
+) => {
+  const response = await apiClient.post('/api/v1/lpr/issue', body);
+  return response.data; // { success, token, jti, expires_at, scopes }
+};
+
 export default apiClient;

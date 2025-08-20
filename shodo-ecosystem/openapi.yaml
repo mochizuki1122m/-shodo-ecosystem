@@ -454,8 +454,14 @@ components:
         - service
         - purpose
         - scopes
+        - device_fingerprint
+        - consent
+        - origins
+        - session_id
       properties:
         service:
+          type: string
+        session_id:
           type: string
         purpose:
           type: string
@@ -466,11 +472,17 @@ components:
             properties:
               method:
                 type: string
-                enum: [GET, POST, PUT, DELETE]
+                enum: [GET, POST, PUT, DELETE, *]
               url_pattern:
                 type: string
+              constraints:
+                type: object
         device_fingerprint:
-          type: string
+          type: object
+        origins:
+          type: array
+          items:
+            type: string
         consent:
           type: boolean
           default: false
