@@ -72,7 +72,7 @@ jobs:
         working-directory: shodo-ecosystem
         run: |
           set -e
-          $COMPOSE -f docker-compose.yml -f docker-compose.ci.yml up -d postgres redis vllm-mock backend
+          $COMPOSE -f docker-compose.yml -f docker-compose.ci.yml up -d postgres redis vllm backend
           echo "Waiting for backend health..."
           BID=$($COMPOSE -f docker-compose.yml -f docker-compose.ci.yml ps -q backend)
           for i in {1..60}; do

@@ -1,8 +1,8 @@
 version: '3.9'
 
 services:
-  # CI専用の軽量モックvLLMサービス
-  vllm-mock:
+  # CIではvllmサービス自体を軽量モックに置き換える
+  vllm:
     image: hashicorp/http-echo:0.2.3
     command: ["-listen=:8001", "-text={\"model\":\"mock\",\"engine\":\"mock\",\"status\":\"ok\"}"]
     networks:
@@ -15,14 +15,12 @@ services:
       start_period: 5s
 
   backend:
-    environment:
-      - VLLM_URL=http://vllm-mock:8001
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      vllm-mock:
+      vllm:
         condition: service_healthy
 
 networks:
