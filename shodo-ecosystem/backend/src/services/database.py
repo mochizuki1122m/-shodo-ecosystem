@@ -92,6 +92,10 @@ def get_redis():
     """Redisクライアント取得"""
     return redis_client
 
+def get_db_engine():
+    """SQLAlchemyエンジン取得（ヘルスチェック等で使用）"""
+    return engine
+
 async def check_all_connections() -> dict:
     """全接続状態チェック"""
     status = {

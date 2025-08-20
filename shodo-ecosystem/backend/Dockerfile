@@ -63,9 +63,9 @@ RUN mkdir -p /app/logs /app/uploads && \
 # Security: Switch to non-root user
 USER appuser
 
-# Health check with proper timeout
+# Health check with proper timeout (use lightweight simple endpoint)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health/simple || exit 1
 
 # Use tini as init system
 ENTRYPOINT ["/usr/bin/tini", "--"]

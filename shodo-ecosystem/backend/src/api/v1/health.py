@@ -9,7 +9,6 @@ import httpx
 from datetime import datetime
 
 from ...schemas.common import HealthCheck
-from ...core.security import limiter
 
 router = APIRouter()
 
@@ -40,7 +39,6 @@ async def check_vllm() -> bool:
         return False
 
 @router.get("/health", response_model=HealthCheck)
-@limiter.limit("10/minute")
 async def health_check():
     """
     ヘルスチェック

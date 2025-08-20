@@ -24,7 +24,7 @@ from .core.config import settings
 from .services.database import init_db, close_db, check_all_connections
 
 # LPRシステム
-from .services.auth.lpr import init_lpr_service
+from .services.auth.lpr_service import get_lpr_service
 from .services.auth.visible_login import init_visible_login, cleanup_visible_login
 from .services.audit.audit_logger import init_audit_logger
 from .middleware.lpr_enforcer import LPREnforcerMiddleware
@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
     
     # LPRシステム初期化
     try:
-        await init_lpr_service()
+        await get_lpr_service()
         await init_audit_logger()
         await init_visible_login()
         logger.info("LPR system initialized successfully")

@@ -13,12 +13,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, validator
 import structlog
 
-from ...services.auth.lpr import (
-    lpr_service,
+from ...services.auth.lpr_service import (
+    get_lpr_service,
     LPRScope,
     LPRPolicy,
     DeviceFingerprint,
-    LPRToken,
 )
 from ...services.auth.visible_login import (
     visible_login_detector,
@@ -239,14 +238,15 @@ async def issue_lpr_token(
         device_fingerprint = DeviceFingerprint(**body.device_fingerprint)
         
         # LPRトークンの発行
-        token, token_str = await lpr_service.issue_token(
+        lpr_service = await get_lpr_service()
+        result = await lpr_service.issue_token(
             user_id=current_user["sub"],
             device_fingerprint=device_fingerprint,
             scopes=scopes,
-            origins=body.origins,
+            service=body.origins[0] if body.origins else "frontend",
+            purpose=body.purpose,
+            consent=body.consent,
             policy=policy,
-            ttl_seconds=body.ttl_seconds,
-            parent_session_id=body.session_id,
         )
         
         # セッションを削除（1回限りの使用）
@@ -256,26 +256,26 @@ async def issue_lpr_token(
         await audit_logger.log(
             event_type=AuditEventType.LPR_ISSUED,
             who=current_user["sub"],
-            what=f"LPR:{token.jti}",
+            what=f"LPR:{result['jti']}",
             where="lpr_issue",
             why=body.purpose,
             how="api",
             result="success",
-            correlation_id=token.correlation_id,
+            correlation_id=result.get("correlation_id"),
             details={
-                "jti": token.jti,
+                "jti": result['jti'],
                 "scopes": len(scopes),
                 "origins": body.origins,
-                "ttl": body.ttl_seconds,
+                "ttl": 3600,
                 "consent": body.consent,
             }
         )
         
         return LPRIssueResponse(
             success=True,
-            token=token_str,
-            jti=token.jti,
-            expires_at=token.expires_at,
+            token=result['token'],
+            jti=result['jti'],
+            expires_at=None,
             scopes=body.scopes,
         )
     
@@ -313,20 +313,19 @@ async def verify_lpr_token(
             device_fingerprint = DeviceFingerprint(**body.device_fingerprint)
         
         # トークン検証
-        is_valid, token, error = await lpr_service.verify_token(
-            token_str=body.token,
-            request_method=body.request_method,
-            request_url=body.request_url,
-            request_origin=body.request_origin,
+        lpr_service = await get_lpr_service()
+        verification = await lpr_service.verify_token(
+            token=body.token,
             device_fingerprint=device_fingerprint,
+            required_scope=LPRScope(body.request_method, body.request_url),
         )
         
-        if is_valid and token:
+        if verification.get("valid"):
             # 監査ログ
             await audit_logger.log(
                 event_type=AuditEventType.LPR_VERIFIED,
-                who=token.subject_pseudonym,
-                what=f"LPR:{token.jti}",
+                who=verification.get("user_id"),
+                what=f"LPR:{verification.get('jti')}",
                 where="lpr_verify",
                 how="api",
                 result="success",
@@ -339,10 +338,10 @@ async def verify_lpr_token(
             
             return {
                 "valid": True,
-                "jti": token.jti,
-                "subject": token.subject_pseudonym,
-                "expires_at": token.expires_at.isoformat(),
-                "correlation_id": token.correlation_id,
+                "jti": verification.get("jti"),
+                "subject": verification.get("user_id"),
+                "expires_at": verification.get("expires_at"),
+                "correlation_id": None,
             }
         else:
             # 監査ログ
@@ -355,7 +354,7 @@ async def verify_lpr_token(
                 result="failure",
                 severity=AuditSeverity.WARNING,
                 details={
-                    "error": error,
+                    "error": verification.get("error"),
                     "method": body.request_method,
                     "url": body.request_url,
                 }
@@ -363,7 +362,7 @@ async def verify_lpr_token(
             
             return {
                 "valid": False,
-                "error": error,
+                "error": verification.get("error"),
             }
     
     except Exception as e:
