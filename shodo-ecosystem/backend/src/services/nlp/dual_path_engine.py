@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import json
 import re
+import time
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -14,6 +15,7 @@ import logging
 
 import httpx
 from pydantic import BaseModel
+from cachetools import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,10 @@ class DualPathEngine:
         self.retry_count = retry_count or getattr(settings, 'vllm_retry_count', 3)
         self.cache_ttl = cache_ttl
         self.fallback_to_rules = fallback_to_rules
-        self.cache = {}  # 簡易キャッシュ
+        
+        # TTL付きキャッシュ（LRU + TTL）
+        self.cache = TTLCache(maxsize=1000, ttl=cache_ttl)
+        
         self.ai_available = True  # AI利用可能フラグ
         self.last_ai_check = datetime.now()
         

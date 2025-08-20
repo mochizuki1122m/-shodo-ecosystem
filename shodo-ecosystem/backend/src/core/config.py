@@ -109,6 +109,18 @@ class Settings(BaseSettings):
     gmail_api_key: Optional[str] = Field(default=None, env="GMAIL_API_KEY")
     slack_api_key: Optional[str] = Field(default=None, env="SLACK_API_KEY")
     
+    def is_production(self) -> bool:
+        """本番環境かどうかを判定"""
+        return self.environment.lower() == "production"
+    
+    def is_development(self) -> bool:
+        """開発環境かどうかを判定"""
+        return self.environment.lower() == "development"
+    
+    def is_testing(self) -> bool:
+        """テスト環境かどうかを判定"""
+        return self.environment.lower() == "testing"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
