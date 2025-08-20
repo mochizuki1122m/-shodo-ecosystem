@@ -27,6 +27,9 @@ from .services.auth.visible_login import init_visible_login, cleanup_visible_log
 from .services.audit.audit_logger import init_audit_logger
 from .middleware.lpr_enforcer import LPREnforcerMiddleware
 
+# レート制限
+from .middleware.rate_limit import RateLimitMiddleware
+
 # APIルーター
 from .api.v1 import auth, dashboard, mcp, nlp, preview, lpr
 
@@ -128,6 +131,9 @@ app.add_middleware(
         "*.shodo.local",
     ]
 )
+
+# レート制限ミドルウェア（最初に適用）
+app.add_middleware(RateLimitMiddleware)
 
 # LPRエンフォーサーミドルウェア
 app.add_middleware(LPREnforcerMiddleware)

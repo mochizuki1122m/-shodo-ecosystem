@@ -30,18 +30,35 @@ class AnalysisResult:
     processing_time_ms: float      # 処理時間
 
 class DualPathEngine:
-    """二重経路解析エンジン"""
+    """二重経路解析エンジン - タイムアウト/フォールバック対応"""
     
-    def __init__(self, vllm_url: str = 'http://vllm:8001', cache_ttl: int = 300):
+    def __init__(
+        self, 
+        vllm_url: str = None,
+        cache_ttl: int = 300,
+        timeout: int = 30,
+        retry_count: int = 3,
+        fallback_to_rules: bool = True
+    ):
         """Initialize with dependency injection
         
         Args:
-            vllm_url: AI server URL
+            vllm_url: AI server URL (ベースURL、/v1なし)
             cache_ttl: Cache TTL in seconds
+            timeout: Request timeout in seconds
+            retry_count: Number of retries
+            fallback_to_rules: Fall back to rule-based when AI fails
         """
-        self.vllm_url = vllm_url
+        # 設定から取得、またはデフォルト値使用
+        from ...core.config import settings
+        self.vllm_url = vllm_url or settings.vllm_url
+        self.timeout = timeout or settings.vllm_timeout
+        self.retry_count = retry_count or getattr(settings, 'vllm_retry_count', 3)
         self.cache_ttl = cache_ttl
+        self.fallback_to_rules = fallback_to_rules
         self.cache = {}  # 簡易キャッシュ
+        self.ai_available = True  # AI利用可能フラグ
+        self.last_ai_check = datetime.now()
         
         # ルールベース設定
         self.patterns = self._initialize_patterns()
