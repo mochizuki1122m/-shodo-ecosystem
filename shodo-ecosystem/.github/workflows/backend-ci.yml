@@ -1,8 +1,13 @@
 name: Backend CI (docker-compose)
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
+      - cursor/**
+      - ci-**
   pull_request:
     branches: [ main, develop ]
 
