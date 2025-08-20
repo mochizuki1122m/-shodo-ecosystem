@@ -64,6 +64,9 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request through LPR enforcement"""
+        # Feature flag to disable enforcer (development/troubleshooting)
+        if not settings.lpr_enforcer_enabled:
+            return await call_next(request)
         
         # Set correlation ID
         correlation_id = request.headers.get("X-Correlation-ID", "")

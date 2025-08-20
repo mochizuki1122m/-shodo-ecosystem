@@ -856,7 +856,7 @@ class PerfectTestRunner:
     
     # ===== テストレポート生成 =====
     
-    def generate_test_report(self) -> Dict[str, Any]:
+    async def generate_test_report(self) -> Dict[str, Any]:
         """テストレポートの生成"""
         
         if not self.test_results:
