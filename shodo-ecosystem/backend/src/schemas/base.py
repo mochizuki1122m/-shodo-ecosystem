@@ -65,3 +65,34 @@ class ErrorCode:
     RESOURCE_CONFLICT = "RES_002"
     INTERNAL_ERROR = "INT_001"
     SERVICE_UNAVAILABLE = "SVC_001"
+    LPR_REQUIRED = "LPR_001"
+    LPR_INVALID = "LPR_002"
+    LPR_EXPIRED = "LPR_003"
+
+def error_response(
+    code: str,
+    message: str,
+    correlation_id: Optional[str] = None,
+    details: Optional[Any] = None,
+    field: Optional[str] = None
+) -> BaseResponse[None]:
+    """
+    統一エラーレスポンス生成
+    
+    Args:
+        code: エラーコード
+        message: エラーメッセージ
+        correlation_id: 相関ID
+        details: 詳細情報
+        field: エラー対象フィールド
+    
+    Returns:
+        統一形式のエラーレスポンス
+    """
+    return BaseResponse(
+        success=False,
+        data=None,
+        error=message,
+        message=f"Error {code}: {message}",
+        correlation_id=correlation_id
+    )
