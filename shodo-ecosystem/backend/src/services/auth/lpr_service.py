@@ -464,3 +464,45 @@ async def get_lpr_service() -> LPRService:
         redis = get_redis()  # Synchronous function, no await needed
         lpr_service = LPRService(redis)
     return lpr_service
+
+    
+async def init_lpr_service():
+    """Initialize LPR service at app startup (idempotent)"""
+    _ = await get_lpr_service()
+    logger.info("LPR service initialized")
+
+
+def _format_status(status: Dict[str, Any]) -> Dict[str, Any]:
+    return status
+
+
+async def get_token_status(jti: str) -> Dict[str, Any]:
+    """Get token status summary by JTI (best-effort)"""
+    svc = await get_lpr_service()
+    if not svc.redis:
+        # Redis unavailable; return unknown status
+        return {
+            "status": "unknown",
+            "jti": jti,
+        }
+    meta = await svc.redis.get(f"lpr:token:{jti}")
+    if not meta:
+        return {
+            "status": "not_found",
+            "jti": jti,
+        }
+    try:
+        data = json.loads(meta)
+    except Exception:
+        return {
+            "status": "invalid",
+            "jti": jti,
+        }
+    status = {
+        "status": "revoked" if data.get("revoked") else "active",
+        "issued_at": data.get("issued_at"),
+        "expires_at": data.get("expires_at"),
+        "subject": data.get("user_id"),
+        "scopes": len(data.get("scopes", [])) if isinstance(data.get("scopes"), list) else None,
+    }
+    return status

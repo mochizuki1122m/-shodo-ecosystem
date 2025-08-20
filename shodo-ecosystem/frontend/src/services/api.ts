@@ -14,9 +14,21 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('authToken');
+    const lprToken = localStorage.getItem('lprToken');
+    // 相関ID（なければ発行）
+    let correlationId = sessionStorage.getItem('correlationId');
+    if (!correlationId) {
+      correlationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      sessionStorage.setItem('correlationId', correlationId);
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (lprToken) {
+      // ミドルウェアは Bearer LPR-... もサポートするが、明示ヘッダーを優先
+      (config.headers as any)['X-LPR-Token'] = lprToken;
+    }
+    (config.headers as any)['X-Correlation-ID'] = correlationId;
     return config;
   },
   (error) => {

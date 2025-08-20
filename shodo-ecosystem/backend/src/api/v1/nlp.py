@@ -14,7 +14,6 @@ from ...services.nlp.dual_path_engine import DualPathEngine, AnalysisResult
 from ...core.config import settings
 from ...core.security import InputSanitizer, PIIMasking
 from ...middleware.auth import get_current_user
-from ...middleware.rate_limit import rate_limit
 from ...utils.correlation import get_correlation_id
 
 logger = structlog.get_logger()
@@ -40,7 +39,6 @@ nlp_engine = DualPathEngine(
     summary="Analyze natural language input",
     description="Process Japanese text using dual-path analysis engine"
 )
-@rate_limit(limit=30)  # 30 requests per minute
 async def analyze_text(
     request: NLPRequest,
     req: Request,
@@ -151,7 +149,6 @@ async def analyze_text(
     summary="Refine analysis with additional context",
     description="Refine previous analysis result with clarification"
 )
-@rate_limit(limit=20)
 async def refine_analysis(
     current_result: NLPAnalysisData,
     refinement: str,

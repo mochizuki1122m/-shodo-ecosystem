@@ -13,12 +13,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, validator
 import structlog
 
-from ...services.auth.lpr import (
-    lpr_service,
+from ...services.auth.lpr_service import (
+    get_lpr_service,
+    get_token_status,
     LPRScope,
     LPRPolicy,
     DeviceFingerprint,
-    LPRToken,
 )
 from ...services.auth.visible_login import (
     visible_login_detector,
@@ -30,7 +30,7 @@ from ...services.audit.audit_logger import (
     AuditEventType,
     AuditSeverity,
 )
-from ...middleware.security import get_current_user
+from ...middleware.auth import get_current_user
 from ...core.config import settings
 
 # 構造化ログ
@@ -55,6 +55,7 @@ class VisibleLoginRequest(BaseModel):
 class LPRIssueRequest(BaseModel):
     """LPR発行リクエスト"""
     session_id: str = Field(..., description="可視ログインのセッションID")
+    service: str = Field(..., description="対象サービス名（例: shopify/gmail/stripe/external 等）")
     scopes: List[Dict[str, str]] = Field(..., description="要求スコープ")
     origins: List[str] = Field(..., description="許可オリジン")
     ttl_seconds: int = Field(default=3600, ge=300, le=86400, description="有効期限（秒）")
@@ -225,7 +226,7 @@ async def issue_lpr_token(
             LPRScope(
                 method=scope["method"],
                 url_pattern=scope["url_pattern"],
-                description=scope.get("description"),
+                constraints=scope.get("constraints"),
             )
             for scope in body.scopes
         ]
@@ -238,15 +239,16 @@ async def issue_lpr_token(
         # デバイス指紋の変換
         device_fingerprint = DeviceFingerprint(**body.device_fingerprint)
         
-        # LPRトークンの発行
-        token, token_str = await lpr_service.issue_token(
-            user_id=current_user["sub"],
-            device_fingerprint=device_fingerprint,
+        # LPRトークンの発行（新LPRサービス）
+        svc = await get_lpr_service()
+        result = await svc.issue_token(
+            service=body.service,
+            purpose=body.purpose,
             scopes=scopes,
-            origins=body.origins,
+            device_fingerprint=device_fingerprint,
+            user_id=current_user["sub"],
+            consent=body.consent,
             policy=policy,
-            ttl_seconds=body.ttl_seconds,
-            parent_session_id=body.session_id,
         )
         
         # セッションを削除（1回限りの使用）
@@ -273,9 +275,9 @@ async def issue_lpr_token(
         
         return LPRIssueResponse(
             success=True,
-            token=token_str,
-            jti=token.jti,
-            expires_at=token.expires_at,
+            token=result.get("token"),
+            jti=result.get("jti"),
+            expires_at=datetime.fromisoformat(result.get("expires_at")) if result.get("expires_at") else None,
             scopes=body.scopes,
         )
     
@@ -312,25 +314,24 @@ async def verify_lpr_token(
         if body.device_fingerprint:
             device_fingerprint = DeviceFingerprint(**body.device_fingerprint)
         
-        # トークン検証
-        is_valid, token, error = await lpr_service.verify_token(
-            token_str=body.token,
-            request_method=body.request_method,
-            request_url=body.request_url,
-            request_origin=body.request_origin,
+        # トークン検証（新LPRサービス）
+        svc = await get_lpr_service()
+        verification = await svc.verify_token(
+            token=body.token,
             device_fingerprint=device_fingerprint,
+            required_scope=LPRScope(method=body.request_method, url_pattern=body.request_url),
         )
         
-        if is_valid and token:
+        if verification.get("valid"):
             # 監査ログ
             await audit_logger.log(
                 event_type=AuditEventType.LPR_VERIFIED,
-                who=token.subject_pseudonym,
-                what=f"LPR:{token.jti}",
+                who=verification.get("user_id", "unknown"),
+                what=f"LPR:{verification.get('jti')}",
                 where="lpr_verify",
                 how="api",
                 result="success",
-                correlation_id=token.correlation_id,
+                correlation_id=None,
                 details={
                     "method": body.request_method,
                     "url": body.request_url,
@@ -339,10 +340,9 @@ async def verify_lpr_token(
             
             return {
                 "valid": True,
-                "jti": token.jti,
-                "subject": token.subject_pseudonym,
-                "expires_at": token.expires_at.isoformat(),
-                "correlation_id": token.correlation_id,
+                "jti": verification.get("jti"),
+                "subject": verification.get("user_id"),
+                "expires_at": verification.get("expires_at"),
             }
         else:
             # 監査ログ
@@ -361,10 +361,7 @@ async def verify_lpr_token(
                 }
             )
             
-            return {
-                "valid": False,
-                "error": error,
-            }
+            return {"valid": False, "error": verification.get("error", "verification_failed")}
     
     except Exception as e:
         logger.error("LPR token verification failed", error=str(e))
@@ -380,11 +377,8 @@ async def revoke_lpr_token(
     
     try:
         # トークンの失効
-        success = await lpr_service.revoke_token(
-            jti=body.jti,
-            reason=body.reason,
-            revoked_by=current_user["sub"],
-        )
+        svc = await get_lpr_service()
+        success = await svc.revoke_token(jti=body.jti, reason=body.reason, user_id=current_user["sub"])
         
         if success:
             # 監査ログ
@@ -435,8 +429,8 @@ async def get_lpr_status(
     """LPRトークンのステータスを取得"""
     
     try:
-        # ステータス取得
-        status = await lpr_service.get_token_status(jti)
+        # ステータス取得（Redisからメタ情報）
+        status = await get_token_status(jti)
         
         # 残りTTLの計算
         remaining_ttl = None
@@ -493,13 +487,10 @@ async def batch_revoke_tokens(
     
     try:
         results = []
+        svc = await get_lpr_service()
         
         for jti in jtis:
-            success = await lpr_service.revoke_token(
-                jti=jti,
-                reason=reason,
-                revoked_by=current_user["sub"],
-            )
+            success = await svc.revoke_token(jti=jti, reason=reason, user_id=current_user["sub"]) 
             results.append({
                 "jti": jti,
                 "revoked": success,

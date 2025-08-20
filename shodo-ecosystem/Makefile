@@ -96,18 +96,17 @@ seed:
 # 本番用ビルド
 build-prod:
 	@echo "📦 Building for production..."
-	docker-compose -f docker-compose.prod.yml build
+	docker-compose -f docker-compose.production.yml build
 
 # 本番環境のデプロイ
 deploy:
 	@echo "🚀 Deploying to production..."
-	docker-compose -f docker-compose.prod.yml up -d
+	docker-compose -f docker-compose.production.yml up -d
 
 # ヘルスチェック
 health:
 	@echo "🏥 Health check..."
 	@curl -s http://localhost:8000/health | jq '.' || echo "Backend not responding"
-	@curl -s http://localhost:8001/health | jq '.' || echo "vLLM not responding"
 
 # パフォーマンステスト
 perf:

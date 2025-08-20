@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     lpr_device_binding: bool = Field(default=True, env="LPR_DEVICE_BINDING")
     lpr_scope_minimization: bool = Field(default=True, env="LPR_SCOPE_MINIMIZATION")
     lpr_audit_logging: bool = Field(default=True, env="LPR_AUDIT_LOGGING")
+    allow_lpr_token_query: bool = Field(default=False, env="ALLOW_LPR_TOKEN_QUERY")
     
     # 監査設定
     service_name: str = Field(default="shodo-ecosystem", env="SERVICE_NAME")

@@ -252,8 +252,9 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         if lpr_header:
             return lpr_header
         
-        # Check query parameter (not recommended for production)
-        if not settings.is_production():
+        # Check query parameter (explicitly enabled only)
+        allow_query = getattr(settings, "allow_lpr_token_query", False)
+        if allow_query and not settings.is_production():
             return request.query_params.get("lpr_token")
         
         return None

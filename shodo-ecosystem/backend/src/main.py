@@ -24,10 +24,12 @@ from .core.config import settings
 from .services.database import init_db, close_db, check_all_connections
 
 # LPRシステム
-from .services.auth.lpr import init_lpr_service
+from .services.auth.lpr_service import init_lpr_service
 from .services.auth.visible_login import init_visible_login, cleanup_visible_login
 from .services.audit.audit_logger import init_audit_logger
 from .middleware.lpr_enforcer import LPREnforcerMiddleware
+from .middleware.security import SecurityHeadersMiddleware, RequestValidationMiddleware
+from .utils.correlation import CorrelationIDMiddleware
 
 # レート制限
 from .middleware.rate_limit import RateLimitMiddleware
@@ -155,6 +157,15 @@ app.add_middleware(RateLimitMiddleware)
 
 # LPRエンフォーサーミドルウェア
 app.add_middleware(LPREnforcerMiddleware)
+
+# セキュリティヘッダー
+app.add_middleware(SecurityHeadersMiddleware)
+
+# リクエスト検証
+app.add_middleware(RequestValidationMiddleware)
+
+# 相関IDミドルウェア
+app.add_middleware(CorrelationIDMiddleware)
 
 # カスタムエラーハンドラー
 @app.exception_handler(Exception)
