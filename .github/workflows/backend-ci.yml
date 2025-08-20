@@ -8,7 +8,6 @@ on:
 
 env:
   DOCKER_BUILDKIT: "1"
-  COMPOSE_FILE: shodo-ecosystem/docker-compose.yml
 
 jobs:
   backend-tests:
@@ -57,7 +56,7 @@ jobs:
       - name: Validate compose config
         working-directory: shodo-ecosystem
         run: |
-          $COMPOSE config
+          $COMPOSE -f docker-compose.yml config
 
       - name: Build images (backend, vllm)
         working-directory: shodo-ecosystem
@@ -67,39 +66,39 @@ jobs:
           sed -n '1,120p' backend/Dockerfile || true
           echo "----- requirements (backend) head -----"
           sed -n '1,120p' backend/requirements.txt || true
-          $COMPOSE build --progress=plain backend vllm
+          $COMPOSE -f docker-compose.yml build --progress=plain backend vllm
 
       - name: Start infra and backend
         working-directory: shodo-ecosystem
         run: |
           set -e
-          $COMPOSE up -d postgres redis vllm backend
+          $COMPOSE -f docker-compose.yml up -d postgres redis vllm backend
           echo "Waiting for backend health..."
-          BID=$($COMPOSE ps -q backend)
+          BID=$($COMPOSE -f docker-compose.yml ps -q backend)
           for i in {1..60}; do
             STATUS=$(docker inspect -f '{{.State.Health.Status}}' "$BID" 2>/dev/null || echo "starting")
             echo "backend health: $STATUS"
             if [ "$STATUS" = "healthy" ]; then break; fi
             sleep 2
           done
-          $COMPOSE ps
-          $COMPOSE logs --no-color --tail=120 backend || true
+          $COMPOSE -f docker-compose.yml ps
+          $COMPOSE -f docker-compose.yml logs --no-color --tail=120 backend || true
 
       - name: Run LPR tests inside backend container
         working-directory: shodo-ecosystem
         run: |
           set -e
-          $COMPOSE exec -T backend pytest -q tests/test_lpr_system.py
+          $COMPOSE -f docker-compose.yml exec -T backend pytest -q tests/test_lpr_system.py
 
       - name: Show backend logs (on failure)
         if: failure()
         working-directory: shodo-ecosystem
         run: |
-          $COMPOSE ps || true
-          $COMPOSE logs --no-color backend || true
+          $COMPOSE -f docker-compose.yml ps || true
+          $COMPOSE -f docker-compose.yml logs --no-color backend || true
 
       - name: Teardown
         if: always()
         working-directory: shodo-ecosystem
         run: |
-          $COMPOSE down -v || true
+          $COMPOSE -f docker-compose.yml down -v || true
