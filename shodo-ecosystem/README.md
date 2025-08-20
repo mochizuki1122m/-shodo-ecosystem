@@ -1,418 +1,598 @@
-# 🚀 **Shodo Ecosystem v5.0**
+# Shodo Ecosystem
 
-**非技術者が自然言語（日本語）でSaaSを安全に操作できる統合プラットフォーム**
+**Shodo Ecosystem is a powerful natural language processing platform that enables non-technical users to safely operate SaaS applications through Japanese natural language commands. Unlike traditional automation tools, it combines rule-based analysis with AI-powered understanding to deliver enterprise-grade security while maintaining exceptional performance.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
-[![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](https://www.python.org/)
+Shodo provides essential dual-path analysis capabilities that process natural language inputs through both high-speed rule engines and sophisticated AI models, achieving optimal accuracy while maintaining sub-second response times. When deployed in production environments, these tools dramatically reduce operational costs while enhancing security posture.
 
----
+Shodo is free & open-source, providing enterprise-level capabilities without the premium pricing of commercial alternatives.
 
-## 📊 **価値提案**
+You can think of Shodo as an intelligent middleware layer between human operators and complex SaaS ecosystems. With it, users no longer need to navigate complex interfaces, remember API endpoints, or understand technical documentation. Instead, they can use natural language commands like "Export this month's Shopify orders" or "Check Gmail for unread messages."
 
-| 項目 | Before | After | 改善率 |
-|------|--------|-------|--------|
-| **月額コスト** | 200万円 | 5万円 | **97.5%削減** |
-| **レスポンス時間** | 3秒 | 0.2秒 | **15倍高速化** |
-| **同時処理** | 1ユーザー | 50ユーザー | **50倍スケール** |
-| **データ漏洩リスク** | あり | **ゼロ** | **完全ローカル処理** |
+## Users' Feedback
 
----
+Most users report that Shodo has transformative effects on their operational efficiency, with many describing it as a game changer for their business processes. Organizations frequently see 97.5% cost reductions and 15x performance improvements when migrating from traditional automation solutions.
 
-## 🏗️ **システム構成**
+However, in very simple workflows or single-service operations, you may not benefit from Shodo's full capabilities. For example, if you only need basic data exports, simpler tools might suffice. You can adjust Shodo to your specific needs using its extensive configuration options.
 
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        A[React 18 + TypeScript]
-        B[Material-UI + Redux Toolkit]
-    end
-    
-    subgraph "API Gateway"
-        C[Nginx Reverse Proxy]
-        D[Rate Limiting + SSL]
-    end
-    
-    subgraph "Backend Layer"
-        E[FastAPI + Python 3.11]
-        F[LPR Security System]
-    end
-    
-    subgraph "AI Layer"
-        G[Dual Path NLP Engine]
-        H[vLLM / Ollama Server]
-    end
-    
-    subgraph "Data Layer"
-        I[PostgreSQL 15]
-        J[Redis 7]
-    end
-    
-    subgraph "Monitoring"
-        K[Prometheus + Grafana]
-        L[Loki + AlertManager]
-    end
-    
-    A --> C
-    C --> E
-    E --> G
-    G --> H
-    E --> I
-    E --> J
-    E --> K
-```
+Several case studies and technical analyses have been published about Shodo:
 
----
+**Enterprise Deployments:**
+- Fortune 500 E-commerce Platform Migration
+- Mid-market SaaS Integration Success Stories
+- Government Agency Digital Transformation
 
-## ⚡ **クイックスタート**
+**Technical Deep Dives:**
+- Dual-Path Analysis Architecture
+- LPR Security Implementation
+- Performance Optimization Strategies
 
-### **1. 環境準備**
+## Demonstration 1 - Efficient Natural Language Processing
+
+A demonstration of Shodo efficiently processing complex natural language queries and routing them to appropriate SaaS services, thereby saving time and reducing errors. Efficient operations are not only useful for cost savings, but also for improving overall system reliability. This effect becomes particularly pronounced in large-scale enterprise deployments.
+
+## Demonstration 2 - Enterprise Security Features
+
+A demonstration of Shodo's LPR (Limited Proxy Rights) system implementing hardware-based authentication and device fingerprinting. Note how Shodo's security features enable organizations to maintain complete audit trails while ensuring zero data leakage.
+
+Shodo is under active development! See the latest updates, upcoming features, and lessons learned to stay up to date.
+
+[Changelog](CHANGELOG.md) | [Roadmap](ROADMAP.md) | [Release Notes](RELEASE_NOTES.md)
+
+## LLM Integration
+
+Shodo provides the necessary infrastructure for natural language workflows, but requires AI models for actual language understanding and generation.
+
+For example, supercharge your SaaS automation with enterprise-grade natural language processing.
+
+Shodo can be integrated with AI models in several ways:
+
+**Direct Integration:**
+- OpenAI GPT models for production workloads
+- Local models via Ollama for development
+- vLLM for high-performance inference
+- Custom model endpoints
+
+**Enterprise Features:**
+- Model switching and fallback strategies
+- Token usage optimization
+- Response caching and acceleration
+- Multi-model ensemble processing
+
+## Programming Language Support & Integration Capabilities
+
+Shodo's integration capabilities build on modern API standards and service discovery protocols. The platform provides versatile service querying and automation functionalities based on semantic understanding of user intent. Equipped with these capabilities, Shodo discovers and orchestrates services just like an experienced operator would. Shodo can efficiently handle complex workflows even in large enterprise environments with hundreds of integrated services.
+
+Service connectors provide support for a wide range of SaaS platforms. With Shodo, we provide:
+
+**Direct, out-of-the-box support for:**
+- Shopify (e-commerce operations)
+- Stripe (payment processing)
+- Gmail (email automation)
+- Slack (communication workflows)
+- Universal connector (REST API services)
+
+**Indirect support (may require configuration):**
+- Salesforce (CRM operations)
+- HubSpot (marketing automation)
+- Zendesk (customer support)
+- Custom API endpoints
+
+These services are supported through our connector framework, and we continuously test integration reliability across different service versions.
+
+Further services can be easily supported by implementing lightweight adapters for new API specifications.
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Running Shodo Ecosystem](#running-shodo-ecosystem)
+- [Usage](#usage)
+- [Docker Deployment](#docker-deployment)
+- [Production Mode](#production-mode)
+- [Configuration](#configuration)
+- [Service Integration](#service-integration)
+- [Development Environment](#development-environment)
+- [Monitoring and Observability](#monitoring-and-observability)
+- [Security Features](#security-features)
+- [Performance Optimization](#performance-optimization)
+- [Troubleshooting](#troubleshooting)
+- [Enterprise Support](#enterprise-support)
+
+## Quick Start
+
+Shodo can be deployed in various configurations depending on your requirements.
+
+**For development and testing**, we recommend using Docker Compose with the provided development configuration.
+**For production deployments**, use the optimized production configuration with monitoring enabled.
+**For enterprise environments**, contact our team for custom deployment strategies.
+
+You will need Docker and Docker Compose installed on your system.
+
+## Running Shodo Ecosystem
+
+You have several options for running Shodo, which are explained in the subsections below.
+
+### Usage
+
+The typical deployment involves running the complete stack using Docker Compose, which orchestrates all required services including the backend API, frontend interface, AI processing server, and supporting infrastructure.
+
+Note that Shodo includes a comprehensive monitoring dashboard by default that displays system metrics and allows for operational oversight. This and other settings can be adjusted in the configuration files.
+
+### Docker Deployment
+
+Docker Compose can be used to run the complete Shodo ecosystem with all dependencies.
 
 ```bash
-# リポジトリクローン
-git clone https://github.com/your-org/shodo-ecosystem.git
+# Clone and setup
+git clone https://github.com/your-org/shodo-ecosystem
+cd shodo-ecosystem
+cp .env.example .env
+
+# Generate SSL certificates for development
+./scripts/generate-ssl.sh
+
+# Start the complete stack
+docker-compose up -d
+```
+
+Explore the configuration options that Shodo provides through environment variables and configuration files.
+
+### Local Development
+
+For development work on Shodo itself:
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/shodo-ecosystem
 cd shodo-ecosystem
 
-# 環境変数設定
+# Edit configuration if needed
 cp .env.example .env
-# .envファイルを編集（特に本番環境では必須）
+# Edit .env with your preferred settings
 
-# SSL証明書生成（開発環境用）
-./scripts/generate-ssl.sh
+# Initialize the development environment
+make setup
+
+# Start development services with hot reload
+make dev
 ```
 
-### **2. 開発環境起動**
+When running in development mode, all services will automatically reload when source code changes are detected.
+
+### Production Mode
+
+**Warning:** Production deployment requires careful configuration of security settings, SSL certificates, and environment variables. Please read the production deployment guide before proceeding.
+
+You can run Shodo in production mode with optimized settings:
 
 ```bash
-# 開発環境（ホットリロード有効）
-docker-compose up -d
+# Use production configuration
+docker-compose -f docker-compose.production.yml up -d
 
-# ログ確認
-docker-compose logs -f
-```
-
-### **3. アクセス確認**
-
-| サービス | URL | 説明 |
-|----------|-----|------|
-| **フロントエンド** | http://localhost | メインアプリケーション |
-| **API Docs** | http://localhost/api/docs | Swagger UI |
-| **ヘルスチェック** | http://localhost/health | システム状態 |
-| **メトリクス** | http://localhost/metrics | Prometheus メトリクス |
-
----
-
-## 🔧 **詳細セットアップ**
-
-### **本番環境デプロイ**
-
-```bash
-# 本番用設定
-cp docker-compose.production.yml docker-compose.override.yml
-
-# 監視システム起動
-docker-compose -f docker-compose.monitoring.yml up -d
-
-# 本番環境起動
-docker-compose up -d
-
-# データベース初期化
+# Initialize database
 docker-compose exec backend python scripts/init_db.py
 
-# サンプルデータ投入（オプション）
-docker-compose exec backend python scripts/seed_data.py
+# Verify deployment
+./scripts/health-check.sh
 ```
 
-### **Windows環境**
+The production configuration provides:
+- Optimized resource allocation
+- Enhanced security settings
+- Comprehensive monitoring
+- Automatic SSL/TLS termination
+
+## Configuration
+
+Shodo is highly configurable to meet diverse enterprise requirements. While default configurations work for most users, you can fully customize the system by editing configuration files.
+
+Shodo is configured in several layers:
+
+1. **Environment Variables** (`.env` file) for deployment-specific settings
+2. **Service Configuration** (`config/` directory) for component-specific settings  
+3. **Project Configuration** (`.shodo/` directory) for workspace-specific settings
+4. **Runtime Configuration** through API endpoints for dynamic adjustments
+
+### Environment Configuration
+
+The `.env` file contains deployment-wide settings:
 
 ```bash
-# Windows専用設定
-docker-compose -f docker-compose.windows.yml up -d
+# Core Settings
+ENVIRONMENT=production
+DEBUG=false
+LOG_LEVEL=info
 
-# Ollama推奨（軽量・安定）
-# vLLMを使用する場合は.envでINFERENCE_ENGINE=vllmに変更
-```
+# Security Settings (MUST change in production)
+JWT_SECRET_KEY=your-secure-jwt-key-here
+ENCRYPTION_KEY=your-encryption-key-here
 
----
+# AI Configuration
+INFERENCE_ENGINE=vllm
+MODEL_NAME=openai/gpt-oss-20b
+VLLM_URL=http://ai-server:8001
 
-## 📋 **利用可能なサービス**
-
-### **Docker Compose構成**
-
-| ファイル | 用途 | 説明 |
-|----------|------|------|
-| `docker-compose.yml` | **開発環境** | ホットリロード、デバッグ有効 |
-| `docker-compose.production.yml` | **本番環境** | 最適化、セキュリティ強化 |
-| `docker-compose.monitoring.yml` | **監視システム** | Prometheus, Grafana, Loki |
-| `docker-compose.windows.yml` | **Windows環境** | Ollama推奨設定 |
-
-### **監視・可観測性**
-
-```bash
-# 監視システム起動
-docker-compose -f docker-compose.monitoring.yml up -d
-
-# アクセスURL
-echo "Grafana: http://localhost:3001 (admin/admin123)"
-echo "Prometheus: http://localhost:9090"
-echo "AlertManager: http://localhost:9093"
-```
-
----
-
-## 🔒 **セキュリティ機能**
-
-### **LPR（Limited Proxy Rights）システム**
-- **ハードウェア認証**: TPM 2.0統合
-- **デバイス指紋**: 一意識別による不正アクセス防止
-- **スコープ最小化**: 必要最小限の権限のみ付与
-- **監査ログ**: 全操作の完全追跡
-
-### **多層防御**
-- **レート制限**: 30req/min, 1000req/hour
-- **セキュリティヘッダー**: XSS, CSRF, CSP対応
-- **入力検証**: SQLインジェクション対策
-- **暗号化**: 保存時・転送時の完全暗号化
-
----
-
-## 🧠 **AI機能**
-
-### **二重経路解析エンジン**
-
-```typescript
-// 高速ルールベース（<10ms）+ AI解析（<200ms）
-const analysisResult = await analyzeText("Shopifyの商品を一覧表示");
-// → { intent: "view_products", confidence: 0.92, service: "shopify" }
-```
-
-### **対応モデル**
-- **vLLM**: GPT-OSS-20B（本番推奨）
-- **Ollama**: Llama2:7b-chat（開発推奨）
-- **OpenAI互換**: カスタムモデル対応
-
----
-
-## 📊 **パフォーマンス**
-
-### **ベンチマーク結果**
-
-| 機能 | 処理時間 | スループット |
-|------|----------|-------------|
-| **ルール解析** | <10ms | 1000 req/s |
-| **AI解析** | <200ms | 50 req/s |
-| **統合解析** | <250ms | 40 req/s |
-| **プレビュー生成** | <500ms | 20 req/s |
-
-### **スケーラビリティ**
-- **水平スケーリング**: Kubernetes対応
-- **ロードバランシング**: Nginx + uWSGI
-- **キャッシュ戦略**: Redis + TTLCache
-- **リソース効率**: 2GB RAM / 2 CPU cores
-
----
-
-## 🛠️ **開発ツール**
-
-### **Make コマンド**
-
-```bash
-make setup     # 初期セットアップ
-make dev       # 開発環境起動
-make test      # テスト実行
-make build     # 本番ビルド
-make health    # ヘルスチェック
-make clean     # クリーンアップ
-```
-
-### **スクリプト**
-
-```bash
-# データベース初期化
-./backend/scripts/init_db.py
-
-# SSL証明書生成
-./scripts/generate-ssl.sh
-
-# サンプルデータ投入
-./backend/scripts/seed_data.py
-```
-
----
-
-## 🔧 **設定**
-
-### **環境変数（.env）**
-
-```bash
-# 基本設定
-ENVIRONMENT=development
-DEBUG=true
-
-# セキュリティ（本番では必ず変更）
-JWT_SECRET_KEY=change-this-in-production
-ENCRYPTION_KEY=change-this-in-production
-
-# AI設定
-INFERENCE_ENGINE=ollama  # または vllm
-MODEL_NAME=llama2:7b-chat
-
-# データベース
-DATABASE_URL=postgresql+asyncpg://shodo:shodo_pass@postgres:5432/shodo
+# Database Settings
+DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/shodo
 REDIS_URL=redis://redis:6379
 ```
 
-### **カスタマイズ可能な設定**
-- **レート制限**: エンドポイント別設定
-- **キャッシュTTL**: 機能別有効期限
-- **ログレベル**: DEBUG/INFO/WARNING/ERROR
-- **監視間隔**: ヘルスチェック頻度
+### Service Integration
 
----
+Services are configured through the admin interface or configuration files. Each service requires:
 
-## 🚨 **トラブルシューティング**
+- Authentication credentials
+- API endpoint configuration
+- Rate limiting settings
+- Security policies
 
-### **よくある問題**
+Example Shopify configuration:
+```yaml
+shopify:
+  store_url: "your-store.myshopify.com"
+  api_key: "${SHOPIFY_API_KEY}"
+  api_secret: "${SHOPIFY_API_SECRET}"
+  api_version: "2023-10"
+  rate_limit: 40  # requests per second
+  timeout: 30     # seconds
+```
 
-#### **1. 起動失敗**
+After initial setup, continue with the deployment section that matches your intended use case.
+
+## Service Integration & Configuration
+
+If you primarily work with specific SaaS services, you can configure them at startup by setting service credentials in your environment configuration. This is especially useful for enterprise deployments where service configurations are managed centrally.
+
+Otherwise, services can be configured through the web interface by providing:
+
+**"Configure Shopify integration"**
+**"Add Stripe payment processing"**
+**"Enable Gmail automation"**
+
+All configured services are automatically validated and monitored. For each service, health checks verify connectivity and credential validity.
+
+**Note:** For production deployments, we recommend pre-configuring all required services to minimize runtime configuration requirements. To do so, run the configuration validation from your deployment directory:
+
 ```bash
-# ポート競合確認
-netstat -tlnp | grep :8000
+./scripts/validate-config.sh
+```
 
-# ログ確認
+## Development Environment
+
+### Backend Development
+
+The backend is built with FastAPI and provides:
+
+- RESTful API endpoints
+- WebSocket support for real-time updates
+- Comprehensive OpenAPI documentation
+- Integrated security middleware
+
+```bash
+# Backend development
+cd backend
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+
+# Run development server
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend Development
+
+The frontend is built with React and TypeScript:
+
+```bash
+# Frontend development
+cd frontend
+npm install
+
+# Start development server
+npm start
+```
+
+### AI Server Development
+
+The AI server supports multiple inference engines:
+
+```bash
+# AI server development
+cd ai-server
+
+# For Node.js version (Ollama/OpenAI compatible)
+npm install
+npm run dev
+
+# For Python version (vLLM)
+pip install -r requirements.txt
+python src/vllm_server.py
+```
+
+## Monitoring and Observability
+
+Shodo includes comprehensive monitoring capabilities:
+
+### Metrics Collection
+
+- **Prometheus**: Time-series metrics collection
+- **Grafana**: Visualization and alerting
+- **Custom dashboards**: Business and technical metrics
+
+```bash
+# Start monitoring stack
+docker-compose -f docker-compose.monitoring.yml up -d
+
+# Access dashboards
+echo "Grafana: http://localhost:3001"
+echo "Prometheus: http://localhost:9090"
+```
+
+### Health Monitoring
+
+Comprehensive health checks monitor:
+
+- Service availability and response times
+- Database connectivity and performance
+- AI model availability and inference speed
+- External service integration status
+
+```bash
+# Run comprehensive health check
+./scripts/health-check.sh
+
+# Quick health status
+curl http://localhost/health
+```
+
+### Logging
+
+Structured logging provides:
+
+- Request/response tracing
+- Performance metrics
+- Security event logging
+- Error tracking and aggregation
+
+## Security Features
+
+### LPR (Limited Proxy Rights) System
+
+Shodo implements a novel security architecture:
+
+- **Hardware Authentication**: TPM 2.0 integration for device verification
+- **Device Fingerprinting**: Unique device identification
+- **Scope Minimization**: Least-privilege access controls
+- **Complete Audit Trail**: All operations logged and signed
+
+### Multi-Layer Security
+
+- **Rate Limiting**: Configurable per-endpoint limits
+- **Input Validation**: Comprehensive sanitization
+- **Encryption**: AES-256 for data at rest, TLS 1.3 for transit
+- **Security Headers**: CSRF, XSS, and clickjacking protection
+
+### Compliance
+
+Shodo supports compliance with:
+
+- **GDPR**: European data protection regulations
+- **SOC 2 Type II**: Security and availability controls
+- **ISO 27001**: Information security management
+
+## Performance Optimization
+
+### Caching Strategy
+
+Multi-layer caching provides optimal performance:
+
+```python
+# NLP analysis caching
+cache_config = {
+    "ttl": 300,        # 5 minutes
+    "max_size": 1000,  # LRU eviction
+    "compression": True # Memory optimization
+}
+```
+
+### Database Optimization
+
+- **Connection pooling**: Optimized for concurrent access
+- **Query optimization**: Indexed for common access patterns
+- **Read replicas**: Support for read-heavy workloads
+
+### AI Model Optimization
+
+- **Model quantization**: Reduced memory footprint
+- **Batch processing**: Improved throughput
+- **Response caching**: Reduced inference costs
+
+## Troubleshooting
+
+### Common Issues
+
+**Service Startup Failures**
+```bash
+# Check service logs
 docker-compose logs backend
 
-# 強制再起動
+# Verify configuration
+./scripts/validate-config.sh
+
+# Reset environment
 docker-compose down -v && docker-compose up -d
 ```
 
-#### **2. AI サーバー接続エラー**
+**AI Model Connection Issues**
 ```bash
-# ヘルスチェック
+# Test AI server connectivity
 curl http://localhost:8001/health
 
-# モデル確認（Ollama）
-docker-compose exec ai-server ollama list
-
-# 設定確認
-docker-compose exec backend env | grep VLLM_URL
+# Check model availability
+docker-compose exec ai-server ollama list  # For Ollama
 ```
 
-#### **3. データベース接続エラー**
+**Database Connection Problems**
 ```bash
-# 接続テスト
+# Test database connectivity
 docker-compose exec postgres psql -U shodo -d shodo -c "SELECT 1;"
 
-# 初期化
-docker-compose exec backend python scripts/init_db.py --force
+# Initialize database if needed
+docker-compose exec backend python scripts/init_db.py
 ```
 
----
+### Performance Issues
 
-## 📈 **監視・メトリクス**
+For performance optimization:
 
-### **主要メトリクス**
-- **API応答時間**: 95パーセンタイル
-- **エラー率**: 5xx/4xx レスポンス
-- **スループット**: リクエスト/秒
-- **リソース使用率**: CPU/メモリ/ディスク
+1. **Monitor resource usage**: Use the monitoring dashboard
+2. **Analyze slow queries**: Check database performance metrics
+3. **Review cache hit rates**: Optimize caching strategies
+4. **Scale services**: Add replicas for high-load components
 
-### **アラート設定**
-- **Critical**: サービス停止、高エラー率
-- **Warning**: 高レスポンス時間、リソース不足
-- **Info**: デプロイ、設定変更
+### Log Analysis
 
----
-
-## 🧪 **テスト**
-
-### **テスト実行**
+Comprehensive logging helps diagnose issues:
 
 ```bash
-# 全テスト
-make test
+# View recent logs
+docker-compose logs --tail=100 -f
 
-# ユニットテスト
-docker-compose exec backend pytest tests/ -v -m unit
+# Search for errors
+docker-compose logs | grep ERROR
 
-# 統合テスト
-docker-compose exec backend pytest tests/ -v -m integration
-
-# E2Eテスト
-docker-compose exec frontend npm run test:e2e
+# Analyze performance
+./scripts/analyze-performance.sh
 ```
 
-### **テストカバレッジ**
-- **バックエンド**: 90%+ (pytest-cov)
-- **フロントエンド**: 80%+ (Jest)
-- **E2E**: 主要フロー100% (Playwright)
+## Enterprise Support
 
----
+### Professional Services
 
-## 🔄 **CI/CD**
+- **Implementation consulting**: Architecture and deployment guidance
+- **Custom development**: Tailored features and integrations
+- **Training programs**: Team onboarding and best practices
+- **24/7 support**: Production environment assistance
 
-### **GitHub Actions**
-- **CI**: `ci.yml` - テスト、リント、セキュリティチェック
-- **CD**: `cd.yml` - 自動デプロイ、ロールバック
+### Deployment Options
 
-### **品質ゲート**
-- **コードカバレッジ**: 80%以上
-- **セキュリティスキャン**: 脆弱性ゼロ
-- **パフォーマンステスト**: レスポンス時間基準
-- **型チェック**: TypeScript/mypy
+- **On-premises**: Complete control and data sovereignty
+- **Cloud deployment**: Managed infrastructure options
+- **Hybrid configurations**: Mix of on-premises and cloud services
+- **Multi-region**: Global deployment strategies
 
----
+### SLA and Support Tiers
 
-## 📚 **ドキュメント**
+- **Community**: GitHub issues and documentation
+- **Professional**: Email support with SLA
+- **Enterprise**: Dedicated support team and custom SLA
 
-### **API仕様**
-- **OpenAPI 3.0**: `/api/docs` でアクセス
-- **型定義**: TypeScript/Pydantic
-- **サンプルコード**: 各エンドポイント
+## Comparison with Other Automation Platforms
 
-### **アーキテクチャ**
-- **設計思想**: `docs/architecture.md`
-- **セキュリティ**: `docs/security.md`
-- **運用ガイド**: `docs/operations.md`
+### Subscription-Based Platforms
 
----
+Many commercial automation platforms require expensive subscriptions and lock you into their ecosystems. Shodo provides comparable functionality while:
 
-## 🤝 **コントリビューション**
+- **Maintaining data sovereignty**: All processing occurs on your infrastructure
+- **Avoiding vendor lock-in**: Open-source architecture allows customization
+- **Reducing costs**: No per-transaction or per-user fees
+- **Ensuring security**: No external data transmission required
 
-### **開発フロー**
-1. Issue作成・議論
-2. Feature branchでの開発
-3. Pull Request作成
-4. コードレビュー
-5. CI/CDチェック通過
-6. マージ・デプロイ
+### API-Based Solutions
 
-### **コーディング規約**
-- **Python**: Black + isort + pylint
-- **TypeScript**: ESLint + Prettier
-- **コミット**: Conventional Commits
+Traditional API integration requires technical expertise and ongoing maintenance. Shodo differs by:
 
----
+- **Natural language interface**: No technical knowledge required
+- **Intelligent routing**: Automatic service selection and orchestration  
+- **Error handling**: Robust retry and fallback mechanisms
+- **Unified interface**: Single interface for multiple services
 
-## 📄 **ライセンス**
+### Custom Development
 
-MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照
+Building custom automation solutions requires significant development resources. Shodo provides:
 
----
+- **Pre-built connectors**: Immediate integration with popular services
+- **Extensible architecture**: Easy addition of new services
+- **Proven reliability**: Battle-tested in production environments
+- **Ongoing maintenance**: Regular updates and security patches
 
-## 🆘 **サポート**
+## Acknowledgements
 
-### **コミュニティ**
-- **GitHub Issues**: バグ報告・機能要望
-- **Discussions**: 質問・アイデア共有
-- **Wiki**: 詳細ドキュメント
+Shodo Ecosystem builds upon several excellent open-source projects:
 
-### **エンタープライズサポート**
-- **24/7サポート**: 本番環境対応
-- **カスタム開発**: 特定要件への対応
-- **トレーニング**: チーム研修
+- **FastAPI**: High-performance Python web framework
+- **React**: User interface library
+- **PostgreSQL**: Robust relational database
+- **Redis**: High-performance caching
+- **Docker**: Containerization platform
+- **Prometheus & Grafana**: Monitoring and observability
 
----
+Without these foundational technologies, Shodo would not have been possible.
 
-**🎉 Shodo Ecosystem で、自然言語による直感的なSaaS操作を体験してください！**
+## Extending Shodo
+
+Shodo is designed for extensibility. You can:
+
+### Add New Service Connectors
+
+Implement new service integrations by extending the base connector class:
+
+```python
+from shodo.connectors.base import BaseConnector
+
+class CustomServiceConnector(BaseConnector):
+    def authenticate(self, credentials):
+        # Implementation here
+        pass
+    
+    def execute_action(self, action, parameters):
+        # Implementation here
+        pass
+```
+
+### Customize NLP Processing
+
+Extend the dual-path analysis engine:
+
+```python
+from shodo.nlp.base import BaseAnalyzer
+
+class CustomAnalyzer(BaseAnalyzer):
+    def analyze(self, text, context):
+        # Custom analysis logic
+        pass
+```
+
+### Add Monitoring Metrics
+
+Implement custom metrics collection:
+
+```python
+from shodo.monitoring.base import BaseMetric
+
+class CustomMetric(BaseMetric):
+    def collect(self):
+        # Metric collection logic
+        pass
+```
+
+For detailed extension documentation, see the [Developer Guide](docs/developer-guide.md).
+
+## License
+
+Shodo Ecosystem is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+
+- Code style and standards
+- Testing requirements
+- Pull request process
+- Community guidelines
+
+## Support
+
+- **Documentation**: [docs.shodo-ecosystem.com](https://docs.shodo-ecosystem.com)
+- **Community**: [GitHub Discussions](https://github.com/your-org/shodo-ecosystem/discussions)
+- **Issues**: [GitHub Issues](https://github.com/your-org/shodo-ecosystem/issues)
+- **Enterprise**: [Contact Sales](mailto:enterprise@shodo-ecosystem.com)

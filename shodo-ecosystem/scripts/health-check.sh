@@ -1,34 +1,34 @@
 #!/bin/bash
 
-# 総合ヘルスチェック・検証スクリプト
-# システム全体の動作確認
+# Comprehensive Health Check and Validation Script
+# System-wide operational verification
 
 set -e
 
-echo "🩺 Shodo Ecosystem - Comprehensive Health Check"
-echo "=============================================="
+echo "Shodo Ecosystem - Comprehensive Health Check"
+echo "============================================"
 
-# 色付きログ用の関数
+# Status reporting functions
 print_status() {
     local status=$1
     local message=$2
     case $status in
         "OK")
-            echo "✅ $message"
+            echo "[OK] $message"
             ;;
         "WARN")
-            echo "⚠️  $message"
+            echo "[WARN] $message"
             ;;
         "ERROR")
-            echo "❌ $message"
+            echo "[ERROR] $message"
             ;;
         "INFO")
-            echo "ℹ️  $message"
+            echo "[INFO] $message"
             ;;
     esac
 }
 
-# サービス起動確認
+# Service connectivity verification
 check_service() {
     local service_name=$1
     local url=$2
@@ -43,7 +43,7 @@ check_service() {
     fi
 }
 
-# JSON レスポンス確認
+# JSON response validation
 check_json_endpoint() {
     local name=$1
     local url=$2
@@ -60,11 +60,11 @@ check_json_endpoint() {
     fi
 }
 
-# Docker Compose サービス確認
+# Docker Compose service verification
 check_docker_services() {
     echo ""
-    echo "🐳 Docker Services Status"
-    echo "-------------------------"
+    echo "Docker Services Status"
+    echo "---------------------"
     
     services=$(docker-compose ps --services 2>/dev/null || echo "")
     if [ -z "$services" ]; then
@@ -91,20 +91,20 @@ check_docker_services() {
     done
 }
 
-# ネットワーク接続確認
+# Network connectivity verification
 check_network_connectivity() {
     echo ""
-    echo "🌐 Network Connectivity"
-    echo "----------------------"
+    echo "Network Connectivity"
+    echo "-------------------"
     
-    # 内部ネットワーク確認
+    # Internal network verification
     if docker network ls | grep -q shodo-network; then
         print_status "OK" "Shodo network exists"
     else
         print_status "WARN" "Shodo network not found"
     fi
     
-    # 外部接続確認
+    # External connectivity verification
     if curl -s --connect-timeout 5 https://httpbin.org/status/200 >/dev/null; then
         print_status "OK" "External connectivity available"
     else
@@ -112,28 +112,28 @@ check_network_connectivity() {
     fi
 }
 
-# コア API エンドポイント確認
+# Core API endpoint verification
 check_core_apis() {
     echo ""
-    echo "🔌 Core API Endpoints"
-    echo "--------------------"
+    echo "Core API Endpoints"
+    echo "-----------------"
     
     base_url="http://localhost"
     
-    # ヘルスチェック
+    # Health check verification
     check_service "Health Check" "$base_url/health"
     check_json_endpoint "Health Check" "$base_url/health" "status"
     
-    # シンプルヘルスチェック
+    # Simple health check verification
     check_service "Simple Health" "$base_url/health/simple"
     
-    # ルートエンドポイント
+    # Root endpoint verification
     check_service "Root Endpoint" "$base_url/"
     check_json_endpoint "Root Endpoint" "$base_url/" "name"
     
-    # メトリクス
+    # Metrics verification
     if check_service "Metrics" "$base_url/metrics"; then
-        # Prometheus形式の確認
+        # Prometheus format verification
         if curl -s "$base_url/metrics" | grep -q "# HELP"; then
             print_status "OK" "Metrics format is valid"
         else
@@ -141,7 +141,7 @@ check_core_apis() {
         fi
     fi
     
-    # API Docs（開発環境のみ）
+    # API documentation verification (development environment only)
     if curl -s "$base_url/api/docs" | grep -q "Swagger"; then
         print_status "OK" "API documentation is available"
     else
@@ -149,17 +149,17 @@ check_core_apis() {
     fi
 }
 
-# データベース接続確認
+# Database connectivity verification
 check_database() {
     echo ""
-    echo "🗄️  Database Connectivity"
-    echo "------------------------"
+    echo "Database Connectivity"
+    echo "--------------------"
     
-    # PostgreSQL 接続確認
+    # PostgreSQL connectivity verification
     if docker-compose exec -T postgres pg_isready -U shodo >/dev/null 2>&1; then
         print_status "OK" "PostgreSQL is ready"
         
-        # テーブル確認
+        # Table verification
         table_count=$(docker-compose exec -T postgres psql -U shodo -d shodo -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ')
         if [ "$table_count" -gt 0 ]; then
             print_status "OK" "Database has $table_count tables"
@@ -170,7 +170,7 @@ check_database() {
         print_status "ERROR" "PostgreSQL is not ready"
     fi
     
-    # Redis 接続確認
+    # Redis connectivity verification
     if docker-compose exec -T redis redis-cli ping >/dev/null 2>&1; then
         print_status "OK" "Redis is responding"
     else
@@ -178,16 +178,16 @@ check_database() {
     fi
 }
 
-# AI サーバー確認
+# AI server verification
 check_ai_server() {
     echo ""
-    echo "🤖 AI Server Status"
-    echo "------------------"
+    echo "AI Server Status"
+    echo "---------------"
     
     ai_url="http://localhost:8001"
     
     if check_service "AI Server" "$ai_url/health"; then
-        # モデル情報確認
+        # Model information verification
         if check_json_endpoint "AI Server" "$ai_url/health" "status"; then
             model=$(curl -s "$ai_url/health" | jq -r '.model // "unknown"' 2>/dev/null)
             engine=$(curl -s "$ai_url/health" | jq -r '.engine // "unknown"' 2>/dev/null)
@@ -196,16 +196,16 @@ check_ai_server() {
     fi
 }
 
-# フロントエンド確認
+# Frontend verification
 check_frontend() {
     echo ""
-    echo "🖥️  Frontend Status"
-    echo "-----------------"
+    echo "Frontend Status"
+    echo "--------------"
     
     frontend_url="http://localhost:3000"
     
     if check_service "Frontend" "$frontend_url"; then
-        # React アプリの確認
+        # React application verification
         if curl -s "$frontend_url" | grep -q "react"; then
             print_status "OK" "Frontend React app is loaded"
         else
@@ -214,19 +214,19 @@ check_frontend() {
     fi
 }
 
-# リソース使用量確認
+# Resource usage verification
 check_resource_usage() {
     echo ""
-    echo "📊 Resource Usage"
-    echo "----------------"
+    echo "Resource Usage"
+    echo "-------------"
     
-    # Docker コンテナのリソース使用量
+    # Docker container resource usage
     if command -v docker >/dev/null 2>&1; then
         echo "Container Resource Usage:"
         docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null || print_status "WARN" "Could not get container stats"
     fi
     
-    # システムリソース
+    # System resource verification
     if command -v free >/dev/null 2>&1; then
         memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
         print_status "INFO" "System memory usage: ${memory_usage}%"
@@ -242,13 +242,13 @@ check_resource_usage() {
     fi
 }
 
-# パフォーマンステスト
+# Performance testing
 performance_test() {
     echo ""
-    echo "⚡ Performance Test"
-    echo "------------------"
+    echo "Performance Test"
+    echo "---------------"
     
-    # 簡単なレスポンス時間テスト
+    # Response time testing
     base_url="http://localhost"
     
     for endpoint in "/health/simple" "/"; do
@@ -270,15 +270,15 @@ performance_test() {
     done
 }
 
-# セキュリティチェック
+# Security verification
 security_check() {
     echo ""
-    echo "🔒 Security Check"
-    echo "----------------"
+    echo "Security Check"
+    echo "-------------"
     
     base_url="http://localhost"
     
-    # セキュリティヘッダー確認
+    # Security header verification
     headers=$(curl -s -I "$base_url/" 2>/dev/null)
     
     security_headers=(
@@ -295,7 +295,7 @@ security_check() {
         fi
     done
     
-    # HTTPS リダイレクト確認（本番環境）
+    # HTTPS redirect verification (production environment)
     if [ "${ENVIRONMENT:-development}" = "production" ]; then
         if curl -s -I "http://localhost/" | grep -qi "location.*https"; then
             print_status "OK" "HTTPS redirect is configured"
@@ -305,13 +305,13 @@ security_check() {
     fi
 }
 
-# ログ確認
+# Log analysis
 check_logs() {
     echo ""
-    echo "📝 Log Analysis"
-    echo "--------------"
+    echo "Log Analysis"
+    echo "-----------"
     
-    # エラーログの確認
+    # Error log verification
     error_count=$(docker-compose logs --tail=100 2>/dev/null | grep -i error | wc -l)
     if [ "$error_count" -eq 0 ]; then
         print_status "OK" "No recent errors in logs"
@@ -321,7 +321,7 @@ check_logs() {
         print_status "ERROR" "$error_count recent errors found - check logs"
     fi
     
-    # 警告ログの確認
+    # Warning log verification
     warning_count=$(docker-compose logs --tail=100 2>/dev/null | grep -i warning | wc -l)
     if [ "$warning_count" -lt 3 ]; then
         print_status "OK" "Minimal warnings in logs ($warning_count)"
@@ -330,14 +330,14 @@ check_logs() {
     fi
 }
 
-# メイン実行
+# Main execution
 main() {
     local start_time=$(date +%s)
     
     echo "Starting comprehensive health check at $(date)"
     echo ""
     
-    # 各チェック実行
+    # Execute all checks
     check_docker_services
     check_network_connectivity
     check_core_apis
@@ -353,30 +353,30 @@ main() {
     local duration=$((end_time - start_time))
     
     echo ""
-    echo "=============================================="
-    echo "🏁 Health Check Completed in ${duration}s"
+    echo "============================================"
+    echo "Health Check Completed in ${duration}s"
     echo ""
     
-    # 総合判定
-    if grep -q "❌" /tmp/health_check.log 2>/dev/null; then
+    # Overall assessment
+    if grep -q "\[ERROR\]" /tmp/health_check.log 2>/dev/null; then
         print_status "ERROR" "System has critical issues"
         echo ""
-        echo "🔧 Recommended actions:"
+        echo "Recommended actions:"
         echo "  1. Check error logs: docker-compose logs"
         echo "  2. Restart services: docker-compose restart"
         echo "  3. Full reset: docker-compose down && docker-compose up -d"
         exit 1
-    elif grep -q "⚠️" /tmp/health_check.log 2>/dev/null; then
+    elif grep -q "\[WARN\]" /tmp/health_check.log 2>/dev/null; then
         print_status "WARN" "System is operational but has warnings"
         echo ""
-        echo "💡 Consider reviewing warnings for optimization"
+        echo "Consider reviewing warnings for optimization"
         exit 0
     else
-        print_status "OK" "All systems are healthy!"
+        print_status "OK" "All systems are healthy"
         echo ""
-        echo "🎉 System is ready for use"
+        echo "System is ready for use"
         echo ""
-        echo "🔗 Quick Links:"
+        echo "Quick Links:"
         echo "  App:     http://localhost"
         echo "  API:     http://localhost/api/docs"
         echo "  Health:  http://localhost/health"
@@ -385,9 +385,9 @@ main() {
     fi
 }
 
-# ログ出力をファイルにも保存
+# Log output to file
 exec > >(tee /tmp/health_check.log)
 exec 2>&1
 
-# メイン実行
+# Execute main function
 main "$@"
