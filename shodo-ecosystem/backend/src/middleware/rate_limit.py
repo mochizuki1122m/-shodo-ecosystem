@@ -80,14 +80,9 @@ class RateLimiter:
             "burst_reset": time.time()
         })
         
-        # Redisクライアント
+        # Redisクライアント（lazy初期化）
         self.redis = None
-        if self.use_redis:
-            try:
-                self.redis = get_redis()
-            except Exception as e:
-                logger.warning(f"Redis not available for rate limiting: {e}")
-                self.use_redis = False
+        self._redis_checked = False
     
     def _get_client_id(self, request: Request) -> str:
         """クライアント識別子を生成"""
@@ -111,6 +106,40 @@ class RateLimiter:
         # ハッシュ化して返す
         return hashlib.md5(client_str.encode()).hexdigest()[:16]
     
+    async def _ensure_redis_connection(self) -> bool:
+        """Redis接続を確保（lazy initialization）"""
+        if not self.use_redis:
+            return False
+            
+        if self.redis is None and not self._redis_checked:
+            try:
+                self.redis = get_redis()
+                self._redis_checked = True
+                if self.redis:
+                    logger.info("Redis connection established for rate limiting")
+                    return True
+            except Exception as e:
+                logger.warning(f"Redis not available for rate limiting: {e}")
+                self._redis_checked = True
+                self.use_redis = False
+                return False
+        
+        # 定期的にRedis接続を再試行（60秒間隔）
+        if self.redis is None and self._redis_checked:
+            current_time = time.time()
+            if not hasattr(self, '_last_redis_retry') or current_time - self._last_redis_retry > 60:
+                self._last_redis_retry = current_time
+                try:
+                    self.redis = get_redis()
+                    if self.redis:
+                        logger.info("Redis connection re-established for rate limiting")
+                        self.use_redis = True
+                        return True
+                except Exception as e:
+                    logger.debug(f"Redis retry failed: {e}")
+        
+        return self.redis is not None
+
     async def _check_redis_limit(
         self, 
         client_id: str, 
@@ -118,7 +147,8 @@ class RateLimiter:
         limits: Dict[str, int]
     ) -> Tuple[bool, Dict[str, int]]:
         """Redis使用時のレート制限チェック"""
-        if not self.redis:
+        if not await self._ensure_redis_connection():
+            logger.debug("Falling back to memory-based rate limiting")
             return await self._check_memory_limit(client_id, path, limits)
         
         try:
@@ -187,7 +217,11 @@ class RateLimiter:
             
         except Exception as e:
             logger.error(f"Redis rate limit error: {e}")
+            # Redis接続をリセットして次回再試行
+            self.redis = None
+            self._redis_checked = False
             # フォールバック to メモリ
+            logger.info("Falling back to memory-based rate limiting due to Redis error")
             return await self._check_memory_limit(client_id, path, limits)
     
     async def _check_memory_limit(
@@ -255,7 +289,8 @@ class RateLimiter:
         path = request.url.path
         limits = RateLimitConfig.get_limits(path)
         
-        if self.use_redis:
+        # Redis使用可能性を毎回チェック（接続復旧対応）
+        if await self._ensure_redis_connection():
             return await self._check_redis_limit(client_id, path, limits)
         else:
             return await self._check_memory_limit(client_id, path, limits)

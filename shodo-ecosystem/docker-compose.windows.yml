@@ -1,16 +1,22 @@
 version: '3.9'
 
 services:
-  # GPT-OSS推論サーバー（CPUモードで動作）
-  vllm:
+  # AI推論サーバー（Windows環境：Ollama推奨）
+  ai-server:
     build: ./ai-server
     ports:
       - "8001:8001"
     environment:
-      - MODEL_NAME=openai/gpt-oss-20b
-      - QUANTIZATION=awq
-      - GPU_MEMORY_UTILIZATION=0.95
-      - MAX_MODEL_LEN=128000
+      # Windows環境ではOllamaを使用（軽量・安定）
+      - INFERENCE_ENGINE=ollama
+      - MODEL_NAME=llama2:7b-chat
+      - OLLAMA_HOST=host.docker.internal:11434
+      # vLLMを使用する場合は以下をコメントアウト
+      # - INFERENCE_ENGINE=vllm
+      # - MODEL_NAME=openai/gpt-oss-20b
+      # - QUANTIZATION=awq
+      # - GPU_MEMORY_UTILIZATION=0.95
+      # - MAX_MODEL_LEN=128000
       # Windows環境ではCPUモードで動作
       - CUDA_VISIBLE_DEVICES=-1
     volumes:
@@ -29,12 +35,12 @@ services:
     environment:
       - DATABASE_URL=postgresql://shodo:shodo_pass@postgres:5432/shodo
       - REDIS_URL=redis://redis:6379
-      - VLLM_URL=http://vllm:8001
+      - VLLM_URL=http://ai-server:8001
       - JWT_SECRET_KEY=your-secret-key-here-change-in-production
     depends_on:
       - postgres
       - redis
-      - vllm
+      - ai-server
     networks:
       - shodo-network
     volumes:

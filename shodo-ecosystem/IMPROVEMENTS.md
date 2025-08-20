@@ -201,4 +201,4 @@ docker-compose up -d backend
 
 ### Docker ビルドエラー
 - `docker-compose down -v` で完全リセット
-- `docker system prune -a` でキャッシュクリア
+- `docker system prune -a` でキャッシュクリア# Additional improvement for v5.0
