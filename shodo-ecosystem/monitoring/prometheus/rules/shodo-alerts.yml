@@ -1,0 +1,138 @@
+groups:
+  - name: shodo-ecosystem-alerts
+    rules:
+      # API応答時間アラート
+      - alert: HighAPIResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="shodo-backend"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High API response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.instance }}"
+
+      # エラー率アラート
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="shodo-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="shodo-backend"}[5m]) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
+
+      # メモリ使用率アラート
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+      # CPU使用率アラート
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # ディスク使用率アラート
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.instance }} ({{ $labels.mountpoint }})"
+
+      # サービス停止アラート
+      - alert: ServiceDown
+        expr: up{job=~"shodo-.*"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.job }} on {{ $labels.instance }} has been down for more than 30 seconds"
+
+      # Redis接続アラート
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance {{ $labels.instance }} is down"
+
+      # PostgreSQL接続アラート
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: postgresql
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL instance {{ $labels.instance }} is down"
+
+      # AI Server応答アラート
+      - alert: AIServerDown
+        expr: up{job="shodo-ai-server"} == 0
+        for: 1m
+        labels:
+          severity: warning
+          service: ai-server
+        annotations:
+          summary: "AI Server is down"
+          description: "AI Server {{ $labels.instance }} has been down for more than 1 minute"
+
+      # レート制限アラート
+      - alert: HighRateLimitHits
+        expr: rate(http_requests_total{status="429"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High rate limit hits detected"
+          description: "Rate limit is being hit {{ $value }} times per second on {{ $labels.instance }}"
+
+      # NLP処理時間アラート
+      - alert: SlowNLPProcessing
+        expr: histogram_quantile(0.95, rate(nlp_processing_duration_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: nlp
+        annotations:
+          summary: "Slow NLP processing detected"
+          description: "95th percentile NLP processing time is {{ $value }}s"
+
+  - name: shodo-ecosystem-capacity
+    rules:
+      # 容量計画用のルール
+      - record: shodo:api_request_rate
+        expr: rate(http_requests_total{job="shodo-backend"}[5m])
+
+      - record: shodo:api_error_rate
+        expr: rate(http_requests_total{job="shodo-backend",status=~"5.."}[5m])
+
+      - record: shodo:memory_usage_percentage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100
+
+      - record: shodo:cpu_usage_percentage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)

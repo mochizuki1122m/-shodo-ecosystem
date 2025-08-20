@@ -4,9 +4,11 @@ LPRシステム統合版
 """
 
 import os
+import time
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
+from datetime import datetime
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -56,9 +58,26 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """アプリケーションのライフサイクル管理"""
+    """アプリケーションのライフサイクル管理（グレースフルシャットダウン対応）"""
     
-    logger.info("Starting Shodo Ecosystem Backend with LPR System")
+    logger.info("🚀 Starting Shodo Ecosystem Backend with LPR System")
+    
+    # グレースフルシャットダウンマネージャーの初期化
+    from .services.graceful_shutdown import shutdown_manager, add_shutdown_handler
+    
+    # カスタムシャットダウンハンドラーを追加
+    async def cleanup_lpr_system():
+        """LPRシステムのクリーンアップ"""
+        try:
+            await cleanup_visible_login()
+            logger.info("LPR system cleaned up")
+        except Exception as e:
+            logger.error(f"LPR cleanup failed: {e}")
+    
+    add_shutdown_handler(cleanup_lpr_system)
+    
+    # シグナルハンドラー設定
+    shutdown_manager.setup_signal_handlers()
     
     # データベース初期化
     try:
@@ -82,31 +101,30 @@ async def lifespan(app: FastAPI):
     
     # アプリケーション起動完了
     logger.info(
-        "Application started",
+        "✅ Application started successfully",
         host=settings.host,
         port=settings.port,
-        debug=settings.debug
+        debug=settings.debug,
+        environment=settings.environment
     )
     
     yield
     
-    # クリーンアップ
-    logger.info("Shutting down application")
+    # グレースフルシャットダウン実行
+    logger.info("🛑 Initiating graceful shutdown...")
     
-    try:
-        await cleanup_visible_login()
-        await close_db()
-        logger.info("Cleanup completed")
-    except Exception as e:
-        logger.error("Cleanup failed", error=str(e))
+    if not shutdown_manager.is_shutting_down:
+        await shutdown_manager.shutdown()
+    
+    logger.info("👋 Application shutdown completed")
 
 # FastAPIアプリケーション作成
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     lifespan=lifespan,
-    docs_url="/api/docs" if settings.debug else None,
-    redoc_url="/api/redoc" if settings.debug else None,
+    docs_url="/api/docs" if settings.debug or not settings.is_production() else None,
+    redoc_url="/api/redoc" if settings.debug or not settings.is_production() else None,
 )
 
 # ===== ミドルウェア設定 =====
@@ -182,24 +200,56 @@ app.include_router(preview.router)
 
 @app.get("/health")
 async def health_check() -> Dict[str, Any]:
-    """ヘルスチェックエンドポイント"""
+    """包括的ヘルスチェックエンドポイント"""
+    from .services.health_checker import health_checker
     
-    # 接続状態をチェック
-    connections = await check_all_connections()
-    
-    # LPRシステムの状態
-    lpr_status = {
-        "lpr_service": "healthy",
-        "audit_logger": "healthy",
-        "visible_login": "healthy",
-    }
-    
-    return {
-        "status": connections["overall"],
-        "version": settings.app_version,
-        "connections": connections,
-        "lpr_system": lpr_status,
-    }
+    try:
+        # 包括的ヘルスチェック実行
+        health_result = await health_checker.run_all_checks()
+        
+        # LPRシステムの状態を追加
+        health_result["components"]["lpr_system"] = {
+            "status": "healthy",
+            "response_time_ms": 0,
+            "details": {
+                "lpr_service": "healthy",
+                "audit_logger": "healthy",
+                "visible_login": "healthy",
+            },
+            "last_checked": health_result["timestamp"]
+        }
+        
+        return health_result
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "timestamp": time.time(),
+            "error": str(e),
+            "version": settings.app_version,
+            "environment": settings.environment
+        }
+
+@app.get("/health/simple")
+async def simple_health_check() -> Dict[str, str]:
+    """シンプルなヘルスチェック（高速）"""
+    try:
+        # 基本的なデータベース接続テスト
+        connections = await check_all_connections()
+        
+        return {
+            "status": connections["overall"],
+            "timestamp": datetime.now().isoformat(),
+            "version": settings.app_version
+        }
+    except Exception as e:
+        logger.error(f"Simple health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.get("/")
 async def root():
@@ -209,7 +259,7 @@ async def root():
         "version": settings.app_version,
         "status": "running",
         "lpr_enabled": True,
-        "docs": "/api/docs" if settings.debug else None,
+        "docs": "/api/docs" if settings.debug or not settings.is_production() else None,
     }
 
 # ===== メトリクス =====

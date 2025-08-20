@@ -66,3 +66,4 @@ safety==3.0.1
 bandit==1.7.6
 tenacity==8.2.3
 cachetools==5.3.2
+psutil==5.9.6
