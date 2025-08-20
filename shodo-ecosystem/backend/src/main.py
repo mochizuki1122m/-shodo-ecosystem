@@ -217,26 +217,12 @@ async def root():
 @app.get("/metrics")
 async def metrics():
     """Prometheusメトリクスエンドポイント"""
-    
-    # TODO: 実際のメトリクス収集
-    metrics_data = {
-        "lpr_tokens_issued": 0,
-        "lpr_tokens_verified": 0,
-        "lpr_tokens_revoked": 0,
-        "audit_logs_written": 0,
-        "visible_logins_attempted": 0,
-        "visible_logins_successful": 0,
-    }
-    
-    # Prometheus形式で返す
-    lines = []
-    for key, value in metrics_data.items():
-        lines.append(f"# TYPE {key} counter")
-        lines.append(f"{key} {value}")
+    from .monitoring.metrics import get_metrics, get_metrics_content_type
+    from fastapi.responses import Response
     
     return Response(
-        content="\n".join(lines),
-        media_type="text/plain"
+        content=get_metrics(),
+        media_type=get_metrics_content_type()
     )
 
 # ===== 管理API =====

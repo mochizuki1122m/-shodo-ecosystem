@@ -11,7 +11,7 @@ import secrets
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr, Field, validator
 from passlib.context import CryptContext
-import jwt
+from jose import jwt, JWTError
 
 from ...schemas.base import BaseResponse, ErrorResponse, ErrorCode
 from ...core.config import settings

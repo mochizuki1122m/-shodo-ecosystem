@@ -1,68 +1,66 @@
 """
-Prometheus metrics collection
-MUST: Complete observability with RED metrics
+Prometheus メトリクス実装
+「測れないものは改善できない」の原則に基づく包括的監視
 """
 
-from typing import Optional, Callable
 import time
+from typing import Dict, Optional, Any
 from prometheus_client import (
-    Counter, Histogram, Gauge, Summary,
+    Counter, Histogram, Gauge, Info,
     CollectorRegistry, generate_latest,
     CONTENT_TYPE_LATEST
 )
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
 import structlog
+from functools import wraps
 
 logger = structlog.get_logger()
 
-# Create a custom registry
+# カスタムレジストリ（デフォルトメトリクスを除外）
 registry = CollectorRegistry()
 
-# ===== HTTP Metrics (RED: Rate, Errors, Duration) =====
-
+# === HTTP メトリクス ===
 http_requests_total = Counter(
     'http_requests_total',
     'Total HTTP requests',
-    ['method', 'endpoint', 'status'],
+    ['method', 'endpoint', 'status_code'],
     registry=registry
 )
 
 http_request_duration_seconds = Histogram(
     'http_request_duration_seconds',
-    'HTTP request duration in seconds',
+    'HTTP request latency',
     ['method', 'endpoint'],
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
     registry=registry
 )
 
-http_request_size_bytes = Summary(
-    'http_request_size_bytes',
-    'HTTP request size in bytes',
-    ['method', 'endpoint'],
+# === 認証メトリクス ===
+auth_attempts_total = Counter(
+    'auth_attempts_total',
+    'Total authentication attempts',
+    ['method', 'status'],
     registry=registry
 )
 
-http_response_size_bytes = Summary(
-    'http_response_size_bytes',
-    'HTTP response size in bytes',
-    ['method', 'endpoint'],
+auth_tokens_issued_total = Counter(
+    'auth_tokens_issued_total',
+    'Total JWT tokens issued',
+    ['type'],
     registry=registry
 )
 
-# ===== LPR Metrics =====
-
+# === LPR メトリクス ===
 lpr_tokens_issued_total = Counter(
     'lpr_tokens_issued_total',
     'Total LPR tokens issued',
-    ['service', 'purpose'],
+    ['scope', 'user_type'],
     registry=registry
 )
 
 lpr_tokens_verified_total = Counter(
     'lpr_tokens_verified_total',
     'Total LPR token verifications',
-    ['service', 'result'],
+    ['status'],
     registry=registry
 )
 
@@ -73,70 +71,60 @@ lpr_tokens_revoked_total = Counter(
     registry=registry
 )
 
-lpr_operations_total = Counter(
-    'lpr_operations_total',
-    'Total LPR operations',
-    ['service', 'operation', 'status'],
+lpr_active_tokens = Gauge(
+    'lpr_active_tokens',
+    'Currently active LPR tokens',
     registry=registry
 )
 
-lpr_operation_duration_seconds = Histogram(
-    'lpr_operation_duration_seconds',
-    'LPR operation duration',
-    ['service', 'operation'],
+# === NLP メトリクス ===
+nlp_analyses_total = Counter(
+    'nlp_analyses_total',
+    'Total NLP analyses performed',
+    ['engine', 'status'],
     registry=registry
 )
 
-# ===== NLP Metrics =====
-
-nlp_analyze_requests_total = Counter(
-    'nlp_analyze_requests_total',
-    'Total NLP analysis requests',
-    ['mode', 'status'],
-    registry=registry
-)
-
-nlp_analyze_duration_seconds = Histogram(
-    'nlp_analyze_duration_seconds',
-    'NLP analysis duration',
-    ['mode', 'processing_path'],
-    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0),
+nlp_processing_duration_seconds = Histogram(
+    'nlp_processing_duration_seconds',
+    'NLP processing time',
+    ['engine'],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0],
     registry=registry
 )
 
 nlp_confidence_score = Histogram(
     'nlp_confidence_score',
-    'NLP confidence score distribution',
-    ['intent', 'service'],
-    buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+    'NLP analysis confidence scores',
+    ['engine'],
+    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
     registry=registry
 )
 
-# ===== Preview Metrics =====
-
-preview_generation_total = Counter(
-    'preview_generation_total',
+# === Preview メトリクス ===
+preview_generations_total = Counter(
+    'preview_generations_total',
     'Total preview generations',
     ['service', 'status'],
     registry=registry
 )
 
-preview_refinement_total = Counter(
-    'preview_refinement_total',
-    'Total preview refinements',
-    ['service'],
-    registry=registry
-)
-
-preview_apply_total = Counter(
-    'preview_apply_total',
+preview_applications_total = Counter(
+    'preview_applications_total',
     'Total preview applications to production',
     ['service', 'status'],
     registry=registry
 )
 
-# ===== Database Metrics =====
+preview_processing_duration_seconds = Histogram(
+    'preview_processing_duration_seconds',
+    'Preview generation time',
+    ['service'],
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],
+    registry=registry
+)
 
+# === データベース/Redis メトリクス ===
 db_connections_active = Gauge(
     'db_connections_active',
     'Active database connections',
@@ -144,21 +132,13 @@ db_connections_active = Gauge(
     registry=registry
 )
 
-db_connections_idle = Gauge(
-    'db_connections_idle',
-    'Idle database connections',
-    ['database'],
-    registry=registry
-)
-
 db_query_duration_seconds = Histogram(
     'db_query_duration_seconds',
     'Database query duration',
-    ['operation', 'table'],
+    ['operation'],
+    buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0],
     registry=registry
 )
-
-# ===== Redis Metrics =====
 
 redis_operations_total = Counter(
     'redis_operations_total',
@@ -167,268 +147,190 @@ redis_operations_total = Counter(
     registry=registry
 )
 
-redis_operation_duration_seconds = Histogram(
-    'redis_operation_duration_seconds',
-    'Redis operation duration',
-    ['operation'],
-    registry=registry
-)
-
-redis_memory_usage_bytes = Gauge(
-    'redis_memory_usage_bytes',
-    'Redis memory usage',
-    registry=registry
-)
-
-# ===== Celery Task Metrics =====
-
-celery_tasks_total = Counter(
-    'celery_tasks_total',
-    'Total Celery tasks',
-    ['task', 'status'],
-    registry=registry
-)
-
-celery_task_duration_seconds = Histogram(
-    'celery_task_duration_seconds',
-    'Celery task duration',
-    ['task'],
-    registry=registry
-)
-
-celery_queue_length = Gauge(
-    'celery_queue_length',
-    'Celery queue length',
-    ['queue'],
-    registry=registry
-)
-
-# ===== System Metrics =====
-
-system_info = Gauge(
+# === システムメトリクス ===
+system_info = Info(
     'system_info',
     'System information',
-    ['version', 'environment'],
     registry=registry
 )
 
-# ===== SLO Metrics =====
-
-slo_availability_ratio = Gauge(
-    'slo_availability_ratio',
-    'SLO availability ratio',
+rate_limit_hits_total = Counter(
+    'rate_limit_hits_total',
+    'Total rate limit hits',
+    ['endpoint', 'client_type'],
     registry=registry
 )
 
-slo_latency_p95_seconds = Gauge(
-    'slo_latency_p95_seconds',
-    'SLO P95 latency',
-    ['endpoint'],
+# === エラーメトリクス ===
+errors_total = Counter(
+    'errors_total',
+    'Total errors by type',
+    ['error_type', 'component'],
     registry=registry
 )
 
-slo_error_rate_ratio = Gauge(
-    'slo_error_rate_ratio',
-    'SLO error rate ratio',
+# === 相関ID追跡 ===
+correlation_requests_total = Counter(
+    'correlation_requests_total',
+    'Total requests with correlation tracking',
+    ['component'],
     registry=registry
 )
 
-class MetricsMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to collect HTTP metrics
-    """
+class MetricsCollector:
+    """メトリクス収集ユーティリティクラス"""
     
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Collect metrics for each request"""
-        
-        # Start timer
-        start_time = time.time()
-        
-        # Get endpoint path
-        endpoint = self._normalize_path(request.url.path)
-        method = request.method
-        
-        # Record request size
-        content_length = request.headers.get("content-length", 0)
-        http_request_size_bytes.labels(
-            method=method,
-            endpoint=endpoint
-        ).observe(int(content_length))
-        
-        try:
-            # Process request
-            response = await call_next(request)
-            status = response.status_code
-            
-        except Exception as e:
-            # Record error
-            status = 500
-            http_requests_total.labels(
-                method=method,
-                endpoint=endpoint,
-                status=status
-            ).inc()
-            raise
-        
-        # Calculate duration
-        duration = time.time() - start_time
-        
-        # Record metrics
+    @staticmethod
+    def record_http_request(method: str, endpoint: str, status_code: int, duration: float):
+        """HTTP リクエストメトリクスを記録"""
         http_requests_total.labels(
             method=method,
             endpoint=endpoint,
-            status=status
+            status_code=str(status_code)
         ).inc()
         
         http_request_duration_seconds.labels(
             method=method,
             endpoint=endpoint
         ).observe(duration)
+    
+    @staticmethod
+    def record_auth_attempt(method: str, success: bool):
+        """認証試行を記録"""
+        status = "success" if success else "failure"
+        auth_attempts_total.labels(method=method, status=status).inc()
+    
+    @staticmethod
+    def record_token_issued(token_type: str):
+        """トークン発行を記録"""
+        auth_tokens_issued_total.labels(type=token_type).inc()
+    
+    @staticmethod
+    def record_lpr_issued(scope: str, user_type: str):
+        """LPR トークン発行を記録"""
+        lpr_tokens_issued_total.labels(scope=scope, user_type=user_type).inc()
+        lpr_active_tokens.inc()
+    
+    @staticmethod
+    def record_lpr_verified(success: bool):
+        """LPR 検証を記録"""
+        status = "success" if success else "failure"
+        lpr_tokens_verified_total.labels(status=status).inc()
+    
+    @staticmethod
+    def record_lpr_revoked(reason: str):
+        """LPR 取り消しを記録"""
+        lpr_tokens_revoked_total.labels(reason=reason).inc()
+        lpr_active_tokens.dec()
+    
+    @staticmethod
+    def record_nlp_analysis(engine: str, success: bool, duration: float, confidence: Optional[float] = None):
+        """NLP 解析を記録"""
+        status = "success" if success else "failure"
+        nlp_analyses_total.labels(engine=engine, status=status).inc()
+        nlp_processing_duration_seconds.labels(engine=engine).observe(duration)
         
-        # Record response size
-        response_length = response.headers.get("content-length", 0)
-        http_response_size_bytes.labels(
-            method=method,
-            endpoint=endpoint
-        ).observe(int(response_length))
+        if confidence is not None:
+            nlp_confidence_score.labels(engine=engine).observe(confidence)
+    
+    @staticmethod
+    def record_preview_generation(service: str, success: bool, duration: float):
+        """プレビュー生成を記録"""
+        status = "success" if success else "failure"
+        preview_generations_total.labels(service=service, status=status).inc()
+        preview_processing_duration_seconds.labels(service=service).observe(duration)
+    
+    @staticmethod
+    def record_preview_application(service: str, success: bool):
+        """プレビュー適用を記録"""
+        status = "success" if success else "failure"
+        preview_applications_total.labels(service=service, status=status).inc()
+    
+    @staticmethod
+    def record_db_query(operation: str, duration: float):
+        """データベースクエリを記録"""
+        db_query_duration_seconds.labels(operation=operation).observe(duration)
+    
+    @staticmethod
+    def record_redis_operation(operation: str, success: bool):
+        """Redis 操作を記録"""
+        status = "success" if success else "failure"
+        redis_operations_total.labels(operation=operation, status=status).inc()
+    
+    @staticmethod
+    def record_rate_limit_hit(endpoint: str, client_type: str):
+        """レート制限ヒットを記録"""
+        rate_limit_hits_total.labels(endpoint=endpoint, client_type=client_type).inc()
+    
+    @staticmethod
+    def record_error(error_type: str, component: str):
+        """エラーを記録"""
+        errors_total.labels(error_type=error_type, component=component).inc()
+    
+    @staticmethod
+    def record_correlation_request(component: str):
+        """相関ID付きリクエストを記録"""
+        correlation_requests_total.labels(component=component).inc()
+    
+    @staticmethod
+    def set_db_connections(database: str, count: int):
+        """データベース接続数を設定"""
+        db_connections_active.labels(database=database).set(count)
+    
+    @staticmethod
+    def set_system_info(info: Dict[str, str]):
+        """システム情報を設定"""
+        system_info.info(info)
+
+def metrics_middleware(request_handler):
+    """HTTP リクエストメトリクス収集ミドルウェア"""
+    @wraps(request_handler)
+    async def wrapper(request, *args, **kwargs):
+        start_time = time.time()
+        status_code = 200
         
-        # Update SLO metrics
-        self._update_slo_metrics(endpoint, status, duration)
-        
-        return response
+        try:
+            response = await request_handler(request, *args, **kwargs)
+            if hasattr(response, 'status_code'):
+                status_code = response.status_code
+            return response
+        except Exception as e:
+            status_code = 500
+            MetricsCollector.record_error(
+                error_type=type(e).__name__,
+                component="http"
+            )
+            raise
+        finally:
+            duration = time.time() - start_time
+            MetricsCollector.record_http_request(
+                method=request.method,
+                endpoint=request.url.path,
+                status_code=status_code,
+                duration=duration
+            )
     
-    def _normalize_path(self, path: str) -> str:
-        """Normalize path for metrics (remove IDs)"""
-        # Replace UUIDs
-        import re
-        path = re.sub(
-            r'/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-            '/{id}',
-            path
-        )
-        # Replace numeric IDs
-        path = re.sub(r'/\d+', '/{id}', path)
-        return path
-    
-    def _update_slo_metrics(self, endpoint: str, status: int, duration: float):
-        """Update SLO tracking metrics"""
-        # This would be calculated from aggregated data
-        # Placeholder implementation
-        pass
+    return wrapper
 
-def track_lpr_issued(service: str, purpose: str):
-    """Track LPR token issuance"""
-    lpr_tokens_issued_total.labels(
-        service=service,
-        purpose=purpose
-    ).inc()
+def get_metrics() -> str:
+    """Prometheus メトリクスを取得"""
+    return generate_latest(registry)
 
-def track_lpr_verified(service: str, valid: bool):
-    """Track LPR token verification"""
-    lpr_tokens_verified_total.labels(
-        service=service,
-        result="valid" if valid else "invalid"
-    ).inc()
+def get_metrics_content_type() -> str:
+    """Prometheus メトリクスのContent-Typeを取得"""
+    return CONTENT_TYPE_LATEST
 
-def track_lpr_revoked(reason: str):
-    """Track LPR token revocation"""
-    lpr_tokens_revoked_total.labels(reason=reason).inc()
-
-def track_lpr_operation(service: str, operation: str, duration: float, success: bool):
-    """Track LPR operation"""
-    lpr_operations_total.labels(
-        service=service,
-        operation=operation,
-        status="success" if success else "failure"
-    ).inc()
-    
-    lpr_operation_duration_seconds.labels(
-        service=service,
-        operation=operation
-    ).observe(duration)
-
-def track_nlp_analysis(mode: str, processing_path: str, duration: float, confidence: float, intent: str, service: str, success: bool):
-    """Track NLP analysis"""
-    nlp_analyze_requests_total.labels(
-        mode=mode,
-        status="success" if success else "failure"
-    ).inc()
-    
-    nlp_analyze_duration_seconds.labels(
-        mode=mode,
-        processing_path=processing_path
-    ).observe(duration)
-    
-    nlp_confidence_score.labels(
-        intent=intent,
-        service=service or "unknown"
-    ).observe(confidence)
-
-def track_preview_generation(service: str, success: bool):
-    """Track preview generation"""
-    preview_generation_total.labels(
-        service=service,
-        status="success" if success else "failure"
-    ).inc()
-
-def track_preview_refinement(service: str):
-    """Track preview refinement"""
-    preview_refinement_total.labels(service=service).inc()
-
-def track_preview_apply(service: str, success: bool):
-    """Track preview application"""
-    preview_apply_total.labels(
-        service=service,
-        status="success" if success else "failure"
-    ).inc()
-
-def track_db_query(operation: str, table: str, duration: float):
-    """Track database query"""
-    db_query_duration_seconds.labels(
-        operation=operation,
-        table=table
-    ).observe(duration)
-
-def update_db_connections(database: str, active: int, idle: int):
-    """Update database connection metrics"""
-    db_connections_active.labels(database=database).set(active)
-    db_connections_idle.labels(database=database).set(idle)
-
-def track_redis_operation(operation: str, duration: float, success: bool):
-    """Track Redis operation"""
-    redis_operations_total.labels(
-        operation=operation,
-        status="success" if success else "failure"
-    ).inc()
-    
-    redis_operation_duration_seconds.labels(
-        operation=operation
-    ).observe(duration)
-
-def update_redis_memory(bytes_used: int):
-    """Update Redis memory usage"""
-    redis_memory_usage_bytes.set(bytes_used)
-
-def track_celery_task(task_name: str, duration: float, success: bool):
-    """Track Celery task"""
-    celery_tasks_total.labels(
-        task=task_name,
-        status="success" if success else "failure"
-    ).inc()
-    
-    celery_task_duration_seconds.labels(task=task_name).observe(duration)
-
-def update_celery_queue_length(queue_name: str, length: int):
-    """Update Celery queue length"""
-    celery_queue_length.labels(queue=queue_name).set(length)
-
+# 初期化時にシステム情報を設定
 def init_system_metrics(version: str, environment: str):
-    """Initialize system metrics"""
-    system_info.labels(
+    """システムメトリクスを初期化"""
+    MetricsCollector.set_system_info({
+        "version": version,
+        "environment": environment,
+        "service": "shodo-ecosystem"
+    })
+    
+    logger.info(
+        "Metrics system initialized",
         version=version,
         environment=environment
-    ).set(1)
-
-async def get_metrics() -> bytes:
-    """Generate Prometheus metrics"""
-    return generate_latest(registry)
+    )

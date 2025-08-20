@@ -10,9 +10,10 @@ from sqlalchemy.pool import NullPool
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 
-# 環境変数から設定を読み込み
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://shodo:shodo_pass@localhost:5432/shodo")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+# 統一設定から読み込み
+from ..core.config import settings
+DATABASE_URL = settings.database_url
+REDIS_URL = settings.redis_url
 
 # SQLAlchemy エンジン
 engine = None
@@ -84,6 +85,9 @@ async def get_db():
         finally:
             await session.close()
 
+# 暫定的な互換性のためのエイリアス
+get_db_session = get_db
+
 def get_redis():
     """Redisクライアント取得"""
     return redis_client
@@ -99,8 +103,9 @@ async def check_all_connections() -> dict:
     # PostgreSQL チェック
     if engine:
         try:
+            from sqlalchemy import text
             async with engine.connect() as conn:
-                await conn.execute("SELECT 1")
+                await conn.execute(text("SELECT 1"))
                 status["postgres"] = True
         except:
             pass
