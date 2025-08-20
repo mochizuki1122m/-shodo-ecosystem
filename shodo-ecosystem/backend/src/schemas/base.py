@@ -1,126 +1,67 @@
 """
-Base response schemas for API consistency
-MUST: All responses follow BaseResponse pattern
+基本レスポンススキーマ - API契約の一貫性
+全APIエンドポイントで使用される統一レスポンス形式
 """
 
-from typing import Generic, TypeVar, Optional, Any, List
+from typing import TypeVar, Generic, Optional, Any, List
+from pydantic import BaseModel
 from datetime import datetime
-from pydantic import BaseModel, Field
-import uuid
 
 T = TypeVar('T')
 
 class BaseResponse(BaseModel, Generic[T]):
     """
-    Standard response wrapper for all API endpoints
-    Ensures consistent response structure
+    統一APIレスポンス形式
+    全エンドポイントがこの形式に準拠
     """
-    success: bool = Field(default=True, description="Operation success status")
-    message: Optional[str] = Field(default=None, description="Human-readable message")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
-    correlation_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Request correlation ID")
-    data: Optional[T] = Field(default=None, description="Response payload")
+    success: bool
+    data: Optional[T] = None
+    error: Optional[str] = None
+    message: Optional[str] = None
+    timestamp: datetime = datetime.utcnow()
+    correlation_id: Optional[str] = None
     
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
 
+class PaginatedResponse(BaseModel, Generic[T]):
+    """ページネーション対応レスポンス"""
+    items: List[T]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
 class ErrorDetail(BaseModel):
-    """Error detail information"""
-    field: Optional[str] = None
+    """エラー詳細情報"""
+    code: str
     message: str
-    code: Optional[str] = None
+    field: Optional[str] = None
+    details: Optional[Any] = None
 
-class ErrorResponse(BaseResponse[None]):
-    """
-    Standard error response
-    """
-    success: bool = Field(default=False)
-    error: dict = Field(
-        default={},
-        description="Error details",
-        example={
-            "code": "VALIDATION_ERROR",
-            "message": "Invalid input data",
-            "details": []
-        }
-    )
-    
-    @classmethod
-    def create(
-        cls,
-        code: str,
-        message: str,
-        details: Optional[List[ErrorDetail]] = None,
-        correlation_id: Optional[str] = None
-    ):
-        """Factory method to create error response"""
-        return cls(
-            success=False,
-            message=message,
-            correlation_id=correlation_id or str(uuid.uuid4()),
-            error={
-                "code": code,
-                "message": message,
-                "details": [d.dict() for d in details] if details else []
-            }
-        )
-
-class PaginatedResponse(BaseResponse[T]):
-    """
-    Paginated response wrapper
-    """
-    total: int = Field(description="Total number of items")
-    page: int = Field(default=1, ge=1, description="Current page number")
-    per_page: int = Field(default=20, ge=1, le=100, description="Items per page")
-    pages: int = Field(description="Total number of pages")
-    
-    @classmethod
-    def create(
-        cls,
-        items: List[Any],
-        total: int,
-        page: int = 1,
-        per_page: int = 20,
-        message: Optional[str] = None
-    ):
-        """Factory method to create paginated response"""
-        pages = (total + per_page - 1) // per_page
-        return cls(
-            success=True,
-            message=message,
-            data=items,
-            total=total,
-            page=page,
-            per_page=per_page,
-            pages=pages
-        )
-
-# Response helpers
-def success_response(
-    data: Any = None,
-    message: Optional[str] = None,
+class ErrorResponse(BaseModel):
+    """エラーレスポンス形式"""
+    success: bool = False
+    error: str
+    error_details: Optional[List[ErrorDetail]] = None
+    timestamp: datetime = datetime.utcnow()
     correlation_id: Optional[str] = None
-) -> BaseResponse:
-    """Create a success response"""
-    return BaseResponse(
-        success=True,
-        message=message,
-        data=data,
-        correlation_id=correlation_id or str(uuid.uuid4())
-    )
+    request_id: Optional[str] = None
 
-def error_response(
-    code: str,
-    message: str,
-    details: Optional[List[ErrorDetail]] = None,
-    correlation_id: Optional[str] = None
-) -> ErrorResponse:
-    """Create an error response"""
-    return ErrorResponse.create(
-        code=code,
-        message=message,
-        details=details,
-        correlation_id=correlation_id
-    )
+# 標準エラーコード
+class ErrorCode:
+    """標準エラーコード定義"""
+    AUTHENTICATION_FAILED = "AUTH_001"
+    AUTHORIZATION_FAILED = "AUTH_002"
+    TOKEN_EXPIRED = "AUTH_003"
+    TOKEN_INVALID = "AUTH_004"
+    RATE_LIMIT_EXCEEDED = "RATE_001"
+    VALIDATION_ERROR = "VAL_001"
+    RESOURCE_NOT_FOUND = "RES_001"
+    RESOURCE_CONFLICT = "RES_002"
+    INTERNAL_ERROR = "INT_001"
+    SERVICE_UNAVAILABLE = "SVC_001"

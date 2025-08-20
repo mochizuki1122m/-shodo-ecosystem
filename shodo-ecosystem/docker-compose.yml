@@ -58,7 +58,7 @@ services:
     # ports:
     #   - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://shodo:shodo_pass@postgres:5432/shodo}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://shodo:shodo_pass@postgres:5432/shodo}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - VLLM_URL=http://vllm:8001
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-in-production}
@@ -100,7 +100,7 @@ services:
     # ports:
     #   - "3000:3000"
     environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost/api}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost}
       - REACT_APP_ENVIRONMENT=${ENVIRONMENT:-development}
     networks:
       - shodo-network

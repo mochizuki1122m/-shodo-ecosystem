@@ -36,18 +36,27 @@ class Settings(BaseSettings):
     redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
     redis_decode_responses: bool = Field(default=True, env="REDIS_DECODE_RESPONSES")
     
-    # AIサーバー設定（vllm-coreに統一）
-    vllm_url: str = Field(default="http://vllm-core:8001/v1", env="VLLM_URL")
+    # AIサーバー設定（ベースURLのみ、パスなし）
+    vllm_url: str = Field(default="http://vllm:8001", env="VLLM_URL")
     vllm_timeout: int = Field(default=30, env="VLLM_TIMEOUT")
+    vllm_retry_count: int = Field(default=3, env="VLLM_RETRY_COUNT")
     model_name: str = Field(default="openai/gpt-oss-20b", env="MODEL_NAME")
     
     # セキュリティ設定
+    secret_key: str = Field(
+        default="change-this-in-production-to-a-secure-random-string",
+        env="SECRET_KEY"
+    )
     jwt_secret_key: str = Field(
         default="change-this-in-production-to-a-secure-random-string",
         env="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
-    jwt_expiration_hours: int = Field(default=24, env="JWT_EXPIRATION_HOURS")
+    jwt_public_key: Optional[str] = Field(default=None, env="JWT_PUBLIC_KEY")
+    jwt_private_key: Optional[str] = Field(default=None, env="JWT_PRIVATE_KEY")
+    jwt_audience: str = Field(default="shodo-ecosystem", env="JWT_AUDIENCE")
+    jwt_issuer: str = Field(default="shodo-auth", env="JWT_ISSUER")
+    jwt_expiration_hours: int = Field(default=1, env="JWT_EXPIRATION_HOURS")
     
     # 暗号化設定
     encryption_key: str = Field(
@@ -77,10 +86,17 @@ class Settings(BaseSettings):
     )
     
     # LPR設定
-    lpr_ttl_hours: int = Field(default=2, env="LPR_TTL_HOURS")
+    lpr_ttl_hours: int = Field(default=1, env="LPR_TTL_HOURS")  # 短命化
     lpr_device_binding: bool = Field(default=True, env="LPR_DEVICE_BINDING")
     lpr_scope_minimization: bool = Field(default=True, env="LPR_SCOPE_MINIMIZATION")
     lpr_audit_logging: bool = Field(default=True, env="LPR_AUDIT_LOGGING")
+    
+    # 監査設定
+    service_name: str = Field(default="shodo-ecosystem", env="SERVICE_NAME")
+    audit_signing_key: str = Field(
+        default="change-this-audit-key-in-production",
+        env="AUDIT_SIGNING_KEY"
+    )
     
     # キャッシュ設定
     cache_ttl_seconds: int = Field(default=300, env="CACHE_TTL_SECONDS")
