@@ -5,7 +5,7 @@ JWT検証とユーザー認証の中央管理
 
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
-import jwt
+from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -87,11 +87,11 @@ async def verify_jwt_token(token: str) -> Optional[TokenClaims]:
         
         return claims
         
-    except jwt.ExpiredSignatureError:
-        logger.warning("JWT token expired")
-        return None
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid JWT token: {e}")
+    except JWTError as e:
+        if "expired" in str(e).lower():
+            logger.warning("JWT token expired")
+        else:
+            logger.warning(f"Invalid JWT token: {e}")
         return None
     except Exception as e:
         logger.error(f"JWT verification error: {e}")

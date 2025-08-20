@@ -52,7 +52,9 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
     # Endpoints that require LPR
     LPR_REQUIRED_PATHS = [
         "/api/v1/mcp/",
-        "/api/v1/external/"
+        "/api/v1/external/",
+        "/api/v1/nlp/",
+        "/api/v1/preview/"
     ]
     
     def __init__(self, app):

@@ -240,7 +240,7 @@ class SandboxPreviewEngine:
             changes=changes,
             created_at=datetime.now(),
             revert_token=self._generate_revert_token(version_id),
-            confidence_score=self._calculate_confidence(changes),
+            confidence=self._calculate_confidence(changes),
             refinement_history=[]
         )
         

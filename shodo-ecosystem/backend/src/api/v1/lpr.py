@@ -31,7 +31,7 @@ from ...services.audit.audit_logger import (
     AuditSeverity,
 )
 from ...middleware.security import get_current_user
-from ...utils.config import settings
+from ...core.config import settings
 
 # 構造化ログ
 logger = structlog.get_logger()
