@@ -115,13 +115,13 @@ async def handle_oauth_callback(
         )
         
         # APIキーを保存
-        await manager._persist_key(config, current_user.id)
+        await manager._persist_key(config, current_user.user_id)
         
         # APIキーを取得して返す
         result = await db.execute(
             select(APIKey).where(
                 and_(
-                    APIKey.user_id == current_user.id,
+                    APIKey.user_id == current_user.user_id,
                     APIKey.service == service,
                     APIKey.status == APIKeyStatus.ACTIVE
                 )
@@ -185,13 +185,13 @@ async def acquire_api_key(
         config.auto_renew = request.auto_renew
         
         # APIキーを保存
-        await manager._persist_key(config, current_user.id)
+        await manager._persist_key(config, current_user.user_id)
         
         # 保存されたキーを取得
         result = await db.execute(
             select(APIKey).where(
                 and_(
-                    APIKey.user_id == current_user.id,
+                    APIKey.user_id == current_user.user_id,
                     APIKey.service == service,
                     APIKey.status == APIKeyStatus.ACTIVE
                 )
@@ -225,7 +225,7 @@ async def list_api_keys(
     db: AsyncSession = Depends(get_db)
 ) -> List[APIKeyResponse]:
     """ユーザーのAPIキー一覧を取得"""
-    query = select(APIKey).where(APIKey.user_id == current_user.id)
+    query = select(APIKey).where(APIKey.user_id == current_user.user_id)
     
     if service:
         try:
@@ -270,7 +270,7 @@ async def get_api_key(
         select(APIKey).where(
             and_(
                 APIKey.key_id == key_id,
-                APIKey.user_id == current_user.id
+                APIKey.user_id == current_user.user_id
             )
         )
     )
@@ -312,7 +312,7 @@ async def refresh_api_key(
         select(APIKey).where(
             and_(
                 APIKey.key_id == key_id,
-                APIKey.user_id == current_user.id
+                APIKey.user_id == current_user.user_id
             )
         )
     )
@@ -345,7 +345,7 @@ async def revoke_api_key(
     manager = DatabaseAPIKeyManager(db)
     
     try:
-        await manager.revoke_key_by_id(key_id, current_user.id, reason)
+        await manager.revoke_key_by_id(key_id, current_user.user_id, reason)
         return {"message": "Key revoked successfully"}
     except Exception as e:
         raise HTTPException(400, f"Failed to revoke key: {str(e)}")
@@ -362,7 +362,7 @@ async def rotate_key(
         select(APIKey).where(
             and_(
                 APIKey.key_id == key_id,
-                APIKey.user_id == current_user.id
+                APIKey.user_id == current_user.user_id
             )
         )
     )
@@ -372,7 +372,7 @@ async def rotate_key(
         raise HTTPException(404, "API key not found")
     
     # バックグラウンドタスクを起動
-    task = rotate_api_key.delay(key_id, current_user.id)
+    task = rotate_api_key.delay(key_id, current_user.user_id)
     
     return {
         "task_id": task.id,
@@ -401,7 +401,7 @@ async def get_key_statistics(
         select(APIKey).where(
             and_(
                 APIKey.key_id == key_id,
-                APIKey.user_id == current_user.id
+                APIKey.user_id == current_user.user_id
             )
         )
     )
@@ -411,7 +411,7 @@ async def get_key_statistics(
         raise HTTPException(404, "API key not found")
     
     stats = await manager.get_usage_statistics(
-        user_id=current_user.id,
+        user_id=current_user.user_id,
         api_key_id=api_key.id,
         start_date=start_date,
         end_date=end_date
@@ -431,7 +431,7 @@ async def update_key_permissions(
         select(APIKey).where(
             and_(
                 APIKey.key_id == key_id,
-                APIKey.user_id == current_user.id
+                APIKey.user_id == current_user.user_id
             )
         )
     )
@@ -471,7 +471,7 @@ async def record_usage(
         select(APIKey).where(
             and_(
                 APIKey.key_id == key_id,
-                APIKey.user_id == current_user.id
+                APIKey.user_id == current_user.user_id
             )
         )
     )

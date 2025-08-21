@@ -68,6 +68,7 @@ function App() {
                 }
               >
                 <Route index element={<Dashboard />} />
+                <Route path="dashboard" element={<Dashboard />} />
                 <Route path="nlp" element={<NLPInput />} />
                 <Route path="preview" element={<PreviewEditor />} />
               </Route>

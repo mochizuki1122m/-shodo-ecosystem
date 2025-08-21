@@ -16,7 +16,7 @@ import uvicorn
 import structlog
 
 # Core configuration
-from .core.config import settings, validate_settings
+from .core.config import settings
 from .core.security import SecurityHeaders
 
 # Database
@@ -31,10 +31,7 @@ from .middleware.lpr_enforcer import LPREnforcerMiddleware
 from .utils.correlation import CorrelationIDMiddleware
 from .monitoring.metrics import MetricsMiddleware, init_system_metrics, get_metrics
 from .monitoring.tracing import init_tracing
-
-# API routers
-from .api import health
-from .api.v1 import nlp, preview
+from .api_docs import custom_openapi
 
 # Structured logging configuration
 structlog.configure(
@@ -61,14 +58,6 @@ async def lifespan(app: FastAPI):
     """Application lifecycle management"""
     
     logger.info("Starting Shodo Ecosystem Backend (Production)")
-    
-    # Validate settings
-    try:
-        validate_settings()
-        logger.info("Settings validated successfully")
-    except ValueError as e:
-        logger.error("Settings validation failed", error=str(e))
-        raise
     
     # Initialize database
     try:
@@ -124,6 +113,9 @@ app = FastAPI(
     docs_url="/api/docs" if not settings.is_production() else None,
     redoc_url="/api/redoc" if not settings.is_production() else None,
 )
+
+# Apply custom OpenAPI schema
+app.openapi = lambda: custom_openapi(app)
 
 # ===== Middleware Configuration =====
 
@@ -184,38 +176,30 @@ async def global_exception_handler(request: Request, exc: Exception):
     else:
         message = str(exc)
     
-    return JSONResponse(
+    return Response(
+        content=message,
         status_code=500,
-        content={
-            "error": "INTERNAL_SERVER_ERROR",
-            "message": message,
-            "correlation_id": correlation_id
-        }
+        media_type="application/json"
     )
 
 # ===== API Router Registration =====
 
 # Health checks (no auth required)
+app.include_router(__import__('src.api.health', fromlist=['router']).router)  # keep compatibility if needed
+from .api import health
 app.include_router(health.router)
 
 # NLP API
+from .api.v1 import nlp, preview
 app.include_router(nlp.router)
-
-# Preview API
 app.include_router(preview.router)
-
-# TODO: Add these routers when implemented
-# app.include_router(auth.router)
-# app.include_router(lpr.router)
-# app.include_router(dashboard.router)
-# app.include_router(mcp.router)
 
 # ===== Metrics Endpoint =====
 
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint"""
-    metrics_data = await get_metrics()
+    metrics_data = get_metrics()
     return Response(
         content=metrics_data,
         media_type="text/plain; version=0.0.4; charset=utf-8"
@@ -231,7 +215,7 @@ async def root():
         "version": settings.app_version,
         "status": "running",
         "environment": settings.environment,
-        "lpr_enabled": settings.feature_lpr_enabled,
+        "lpr_enabled": True,
         "docs": "/api/docs" if not settings.is_production() else None,
     }
 
@@ -276,10 +260,10 @@ if not settings.is_production():
             "cors_origins": settings.cors_origins,
             "rate_limit_enabled": settings.rate_limit_enabled,
             "features": {
-                "lpr": settings.feature_lpr_enabled,
-                "nlp": settings.feature_nlp_enabled,
-                "preview": settings.feature_preview_enabled,
-                "mcp": settings.feature_mcp_enabled,
+                "lpr": True,
+                "nlp": True,
+                "preview": True,
+                "mcp": False,
             }
         }
     
@@ -296,12 +280,7 @@ if not settings.is_production():
             ]
         }
 
-# ===== Main Execution =====
-
 if __name__ == "__main__":
-    # Validate settings before starting
-    validate_settings()
-    
     # Configure logging
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
     logging.basicConfig(

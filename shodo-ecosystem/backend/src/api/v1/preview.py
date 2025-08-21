@@ -68,7 +68,7 @@ async def generate_preview(
     try:
         logger.info(
             "Preview generation request",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             service_id=request.service_id,
             changes_count=len(request.changes)
@@ -92,7 +92,7 @@ async def generate_preview(
             {
                 "service_id": request.service_id,
                 "context": request.context or {},
-                "user_id": current_user.id
+                "user_id": current_user.user_id
             }
         )
         
@@ -124,7 +124,7 @@ async def generate_preview(
         
         logger.info(
             "Preview generated",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             preview_id=preview.id,
             confidence=preview.confidence
@@ -140,7 +140,7 @@ async def generate_preview(
     except ValueError as e:
         logger.warning(
             "Preview validation error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e)
         )
@@ -153,7 +153,7 @@ async def generate_preview(
     except Exception as e:
         logger.error(
             "Preview generation error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e),
             exc_info=True
@@ -195,7 +195,7 @@ async def refine_preview(
         
         logger.info(
             "Preview refinement request",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             preview_id=preview_id,
             refinement_length=len(request.refinement)
@@ -243,7 +243,7 @@ async def refine_preview(
     except Exception as e:
         logger.error(
             "Preview refinement error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e),
             exc_info=True
@@ -292,7 +292,7 @@ async def apply_preview(
         
         logger.warning(
             "Applying preview to production",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             preview_id=preview_id,
             service=preview.service
@@ -303,7 +303,7 @@ async def apply_preview(
         
         logger.info(
             "Preview applied to production",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             preview_id=preview_id,
             result=result
@@ -319,7 +319,7 @@ async def apply_preview(
     except Exception as e:
         logger.error(
             "Production apply error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e),
             exc_info=True
@@ -350,7 +350,7 @@ async def rollback_version(
     try:
         logger.warning(
             "Rollback request",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             version_id=version_id
         )
@@ -359,7 +359,7 @@ async def rollback_version(
         
         logger.info(
             "Rollback completed",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             version_id=version_id,
             result=result
@@ -381,7 +381,7 @@ async def rollback_version(
     except Exception as e:
         logger.error(
             "Rollback error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e),
             exc_info=True

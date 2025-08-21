@@ -19,6 +19,7 @@ import structlog
 
 # 設定
 from .core.config import settings
+from .api_docs import custom_openapi
 
 # データベース
 from .services.database import init_db, close_db, check_all_connections
@@ -126,6 +127,9 @@ app = FastAPI(
     docs_url="/api/docs" if settings.debug or not settings.is_production() else None,
     redoc_url="/api/redoc" if settings.debug or not settings.is_production() else None,
 )
+
+# Apply custom OpenAPI schema
+app.openapi = lambda: custom_openapi(app)
 
 # ===== ミドルウェア設定 =====
 

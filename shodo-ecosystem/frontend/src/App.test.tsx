@@ -45,7 +45,7 @@ describe('App Component', () => {
     );
     
     // ログインページへのリダイレクトを確認
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.pathname).toBe('/login');
   });
 });
 

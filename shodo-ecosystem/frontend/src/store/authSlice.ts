@@ -28,7 +28,7 @@ export const login = createAsyncThunk(
     const response = await apiLogin(email, password);
     // BaseResponse形式に対応: response.data.access_token
     if (response.success && response.data) {
-      localStorage.setItem('authToken', response.data.access_token);
+      localStorage.setItem('access_token', response.data.access_token);
       return response.data.user;
     }
     throw new Error(response.error || 'Login failed');
@@ -37,7 +37,7 @@ export const login = createAsyncThunk(
 
 export const logout = createAsyncThunk('auth/logout', async () => {
   await apiLogout();
-  localStorage.removeItem('authToken');
+  localStorage.removeItem('access_token');
 });
 
 export const fetchCurrentUser = createAsyncThunk('auth/fetchCurrentUser', async () => {

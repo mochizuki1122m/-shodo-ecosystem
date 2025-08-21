@@ -9,7 +9,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem('access_token');
 
   // 開発環境では認証をスキップ
   if (process.env.NODE_ENV === 'development') {

@@ -12,8 +12,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """レート制限ミドルウェア"""
+class SecurityRateLimitMiddleware(BaseHTTPMiddleware):
+    """レート制限ミドルウェア（セキュリティ簡易版）"""
     
     def __init__(self, app, requests_per_minute: int = 60, requests_per_hour: int = 1000):
         super().__init__(app)
@@ -180,7 +180,7 @@ def setup_security_middleware(app, settings):
     # レート制限
     if settings.rate_limit_enabled:
         app.add_middleware(
-            RateLimitMiddleware,
+            SecurityRateLimitMiddleware,
             requests_per_minute=settings.rate_limit_per_minute,
             requests_per_hour=settings.rate_limit_per_hour
         )

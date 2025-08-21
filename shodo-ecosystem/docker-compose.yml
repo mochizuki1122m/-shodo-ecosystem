@@ -93,36 +93,6 @@ services:
           memory: 2G
     restart: unless-stopped
     
-  # フロントエンド
-  frontend:
-    build: ./frontend
-    # ポート公開を削除（Nginx経由のみ）
-    # ports:
-    #   - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost}
-      - REACT_APP_ENVIRONMENT=${ENVIRONMENT:-development}
-    networks:
-      - shodo-network
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
-    restart: unless-stopped
-    
   # データベース
   postgres:
     image: postgres:15-alpine
@@ -133,7 +103,7 @@ services:
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --locale=ja_JP.utf8
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+      - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - shodo-internal  # 内部ネットワークのみ
     # ポート公開を削除（本番環境では内部のみ）
