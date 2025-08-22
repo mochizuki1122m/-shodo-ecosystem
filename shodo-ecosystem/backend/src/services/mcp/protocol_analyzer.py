@@ -6,11 +6,11 @@ MCP Protocol Analyzer - API導線自動分析・生成システム
 import asyncio
 import json
 import re
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 import structlog
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup
 

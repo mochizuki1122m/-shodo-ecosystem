@@ -862,7 +862,7 @@ async def demonstrate_perfect_mcp_system():
     
     # システムステータスの表示
     status = await system.get_system_status()
-    print(f"📊 System Status:")
+    print("📊 System Status:")
     print(f"   State: {status['state']}")
     print(f"   Health Score: {status['health']['overall_score']:.2f}")
     print(f"   Uptime: {status['uptime_seconds']:.0f}s")
@@ -875,7 +875,7 @@ async def demonstrate_perfect_mcp_system():
         {"url": "https://trello.com", "name": "trello"}
     ]
     
-    print(f"\n🔗 Testing service connections...")
+    print("\n🔗 Testing service connections...")
     
     for service in test_services:
         print(f"   Connecting to {service['name']}...")
@@ -907,7 +907,7 @@ async def demonstrate_perfect_mcp_system():
     
     # 操作実行のテスト
     if connected_services:
-        print(f"\n🧪 Testing operations...")
+        print("\n🧪 Testing operations...")
         
         for service in connected_services[:2]:  # 最初の2サービスでテスト
             test_operations = ["list_items", "search"]
@@ -923,7 +923,7 @@ async def demonstrate_perfect_mcp_system():
                 print(f"   {status_symbol} {service['name']}.{operation}: {result.execution_time_ms:.0f}ms")
     
     # 包括的テストの実行
-    print(f"\n🧪 Running comprehensive tests...")
+    print("\n🧪 Running comprehensive tests...")
     test_result = await system.run_comprehensive_test()
     
     if test_result["success"]:
@@ -933,7 +933,7 @@ async def demonstrate_perfect_mcp_system():
     
     # 最終ステータス
     final_status = await system.get_system_status()
-    print(f"\n🎯 Perfect MCP System Demonstration Completed")
+    print("\n🎯 Perfect MCP System Demonstration Completed")
     print(f"   Final Health Score: {final_status['health']['overall_score']:.2f}")
     print(f"   Services Connected: {final_status['services']['connected']}")
     print(f"   Operations Executed: {final_status['operations']['total']}")
