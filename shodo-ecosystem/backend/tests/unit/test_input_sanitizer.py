@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.security import InputSanitizer
+from src.core.security_utils import InputSanitizer
 
 
 def test_sanitize_string_keeps_japanese_characters():
