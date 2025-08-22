@@ -3,11 +3,10 @@ SaaS自動検出・連携システム
 URLから自動的にSaaSを識別し、適切なコネクタを選択または生成
 """
 
-import re
 import httpx
 from typing import Dict, Any, Optional, List, Type
 from urllib.parse import urlparse
-import json
+
 
 from .base import BaseSaaSConnector, ConnectorCredentials
 from .shopify import ShopifyConnector

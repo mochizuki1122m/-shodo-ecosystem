@@ -12,7 +12,7 @@ from datetime import datetime
 import uuid
 
 from ..core.exceptions import BaseAPIException
-from ..services.audit.audit_logger import log_error
+from ..services.audit.audit_logger import get_audit_logger, AuditEventType
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +102,19 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         
         # 監査ログに記録
         try:
-            await log_error(
+            audit = await get_audit_logger()
+            await audit.log(
+                event_type=AuditEventType.ERROR,
                 user_id=getattr(request.state, "user_id", None),
-                action="error",
-                resource=str(request.url.path),
+                correlation_id=request_id,
                 details=error_info,
                 ip_address=request.client.host if request.client else None,
-                user_agent=request.headers.get("user-agent")
+                user_agent=request.headers.get("user-agent"),
+                success=False,
+                severity="CRITICAL" if is_critical else "ERROR"
             )
-        except Exception as log_error:
-            logger.error(f"Failed to log error to audit: {log_error}")
+        except Exception as e:
+            logger.error(f"Failed to log error to audit: {e}")
     
     def _get_error_detail(self, error: Exception) -> dict:
         """エラー詳細情報取得"""

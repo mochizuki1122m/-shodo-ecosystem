@@ -3,14 +3,13 @@ Shodo Ecosystem バックエンドサーバー
 LPRシステム統合版
 """
 
-import os
 import time
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 from datetime import datetime
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -21,7 +20,7 @@ import structlog
 from .core.config import settings
 
 # データベース
-from .services.database import init_db, close_db, check_all_connections
+from .services.database import init_db, check_all_connections
 
 # LPRシステム
 from .services.auth.lpr_service import get_lpr_service

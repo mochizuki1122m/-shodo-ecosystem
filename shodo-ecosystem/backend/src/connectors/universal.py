@@ -5,12 +5,8 @@
 
 import httpx
 import json
-import yaml
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-import asyncio
-from urllib.parse import urlparse
-import re
 
 from .base import (
     BaseSaaSConnector, ConnectorConfig, ConnectorCredentials,
@@ -541,7 +537,7 @@ class UniversalSaaSConnector(BaseSaaSConnector):
     ) -> str:
         """汎用的なプレビューHTML生成"""
         html_parts = [
-            f'<div class="universal-preview">',
+            '<div class="universal-preview">',
             f'<h2 class="resource-type">{resource_type.upper()}</h2>',
             f'<div class="resource-id">ID: {data.get("id", "N/A")}</div>',
             '<div class="resource-details">'

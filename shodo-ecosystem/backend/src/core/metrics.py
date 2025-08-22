@@ -3,7 +3,7 @@
 Prometheus形式のメトリクス収集と公開
 """
 
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from datetime import datetime
 import time
 import asyncio

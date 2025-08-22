@@ -3,15 +3,14 @@ Shodo Ecosystem Production Backend Server
 Enterprise-grade implementation with full monitoring and security
 """
 
-import os
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import uvicorn
 import structlog
 

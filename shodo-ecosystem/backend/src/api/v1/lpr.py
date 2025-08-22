@@ -8,8 +8,8 @@ import secrets
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, Body, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, Request, Body, Query
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field, validator
 import structlog
 
@@ -511,11 +511,12 @@ async def batch_revoke_tokens(
     try:
         results = []
         
+        lpr = await get_lpr_service()
         for jti in jtis:
-            success = await lpr_service.revoke_token(
+            success = await lpr.revoke_token(
                 jti=jti,
                 reason=reason,
-                revoked_by=current_user["sub"],
+                user_id=current_user["sub"],
             )
             results.append({
                 "jti": jti,
@@ -526,7 +527,7 @@ async def batch_revoke_tokens(
         await audit_logger.log(
             event_type=AuditEventType.LPR_REVOKED,
             who=current_user["sub"],
-            what=f"batch_revoke",
+            what="batch_revoke",
             where="lpr_batch_revoke",
             why=reason,
             how="api",

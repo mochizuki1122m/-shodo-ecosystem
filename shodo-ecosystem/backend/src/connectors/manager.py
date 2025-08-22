@@ -6,7 +6,6 @@ SaaSコネクタマネージャー
 from typing import Dict, Any, List, Optional, Type
 import asyncio
 from datetime import datetime
-import json
 
 from .base import BaseSaaSConnector, ConnectorConfig, ConnectorCredentials, ConnectorType
 from .shopify import ShopifyConnector

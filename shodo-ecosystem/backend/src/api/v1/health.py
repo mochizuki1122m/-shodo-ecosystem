@@ -2,7 +2,7 @@
 ヘルスチェックエンドポイント
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from typing import Dict
 import os
 import httpx

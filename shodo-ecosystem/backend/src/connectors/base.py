@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, AsyncGenerator
 from datetime import datetime
 from enum import Enum
-import asyncio
 from dataclasses import dataclass
 
 class ConnectorType(str, Enum):
