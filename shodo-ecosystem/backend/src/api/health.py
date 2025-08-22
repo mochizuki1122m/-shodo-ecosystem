@@ -15,11 +15,6 @@ import httpx
 from ..core.config import settings
 from ..schemas.base import BaseResponse
 from ..services.database import check_database_health, check_redis_health
-from ..monitoring.metrics import (
-    slo_availability_ratio,
-    slo_latency_p95_seconds,
-    slo_error_rate_ratio
-)
 
 logger = structlog.get_logger()
 

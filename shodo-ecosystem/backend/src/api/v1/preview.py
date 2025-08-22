@@ -3,19 +3,17 @@ Preview API endpoints
 MUST: OpenAPI compliant, BaseResponse pattern
 """
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, Request
 import structlog
 
 from ...schemas.base import BaseResponse, error_response
 from ...schemas.preview import (
-    PreviewRequest, PreviewResponse, PreviewData,
+    PreviewRequest, PreviewData,
     RefineRequest, ApplyRequest
 )
 from ...services.preview.sandbox_engine import (
-    SandboxPreviewEngine, Preview, Change
+    SandboxPreviewEngine
 )
-from ...core.config import settings
 from ...core.security import InputSanitizer
 from ...middleware.auth import get_current_user
 from ...utils.correlation import get_correlation_id
