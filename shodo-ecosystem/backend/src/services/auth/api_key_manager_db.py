@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from ...models.api_key import APIKey, APIKeyAuditLog, APIKeyUsage, ServiceType, APIKeyStatus
 
 
-from .api_key_manager import APIKeyManager, APIKeyConfig, OAuthConfig
+from .api_key_manager import APIKeyManager, APIKeyConfig
 
 class DatabaseAPIKeyManager(APIKeyManager):
     """

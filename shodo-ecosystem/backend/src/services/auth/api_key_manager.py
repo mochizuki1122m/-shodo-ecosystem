@@ -4,7 +4,6 @@ APIキー自動取得・管理システム
 """
 
 import os
-import asyncio
 import hashlib
 from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta

@@ -7,11 +7,9 @@ Playwrightを使用してヘッドフルブラウザでのログインプロセ�
 
 import asyncio
 import secrets
-import hashlib
-from typing import Optional, Dict, List, Any, Tuple
+from typing import Optional, Dict, List, Any
 from datetime import datetime, timezone
 from dataclasses import dataclass
-import logging
 
 from playwright.async_api import async_playwright, Browser, Page, BrowserContext
 import structlog

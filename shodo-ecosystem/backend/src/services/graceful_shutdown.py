@@ -130,7 +130,7 @@ async def flush_logs():
     """ログのフラッシュ"""
     try:
         # 構造化ログのフラッシュ
-        import structlog as _structlog  # noqa: F401
+
         logger.info("Flushing logs...")
         
         # 少し待ってログが確実に出力されるようにする
