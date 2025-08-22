@@ -11,7 +11,7 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
-from playwright.async_api import async_playwright, Browser, Page, BrowserContext
+from playwright.async_api import async_playwright, Browser, Page
 import structlog
 
 # 構造化ログ

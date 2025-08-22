@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Any
 import json
 import uuid
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-from ...models.models import User, Session  # noqa: F401
 from ...core.exceptions import AuthenticationException, AuthorizationException
 from ...core.security import JWTManager
 
