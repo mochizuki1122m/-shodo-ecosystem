@@ -77,8 +77,6 @@ async def init_db() -> Tuple[bool, bool]:
 
 async def close_db():
     """データベース接続クローズ"""
-    global engine, redis_client
-    
     if engine is not None:
         await engine.dispose()
     

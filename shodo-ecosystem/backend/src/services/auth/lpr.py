@@ -2,15 +2,14 @@
 LPR (Limited Proxy Rights) システム実装
 """
 
-import secrets
 import hashlib
-import json
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Any
+import json
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select
 
 from ...models.models import User, Session
 from ...core.exceptions import AuthenticationException, AuthorizationException

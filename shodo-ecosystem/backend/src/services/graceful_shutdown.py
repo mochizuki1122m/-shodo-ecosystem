@@ -8,7 +8,7 @@ import signal
 import logging
 from typing import List, Callable
 from contextlib import asynccontextmanager
-from time import time as _time
+from time import time as _time  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ async def flush_logs():
     """ログのフラッシュ"""
     try:
         # 構造化ログのフラッシュ
-        import structlog  # noqa: F401
+        import structlog as _structlog  # noqa: F401
         logger.info("Flushing logs...")
         
         # 少し待ってログが確実に出力されるようにする
