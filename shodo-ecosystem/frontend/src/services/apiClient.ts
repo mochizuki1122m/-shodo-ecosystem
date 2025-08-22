@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import { store } from '../store';
 
 // APIレスポンス型
 export interface ApiResponse<T = any> {
@@ -51,44 +50,36 @@ class ApiClient {
     // リクエストインターセプター
     this.client.interceptors.request.use(
       (config) => {
-        const state = store.getState();
-        const token = state.auth?.token;
-        
+        const token = localStorage.getItem('access_token');
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          (config.headers as any).Authorization = `Bearer ${token}`;
         }
-
         // リクエストIDの追加
-        config.headers['X-Request-ID'] = this.generateRequestId();
-        
+        (config.headers as any)['X-Request-ID'] = this.generateRequestId();
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
 
     // レスポンスインターセプター
     this.client.interceptors.response.use(
-      (response) => {
-        return response;
-      },
+      (response) => response,
       async (error: AxiosError<ErrorResponse>) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
-        
-        // 401エラーでトークンリフレッシュ
+
+        // 401エラーでトークンリフレッシュ（可能なら）
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-          
           try {
             const newToken = await this.refreshToken();
             if (newToken && originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              (originalRequest.headers as any).Authorization = `Bearer ${newToken}`;
               return this.client(originalRequest);
             }
           } catch (refreshError) {
-            // リフレッシュ失敗時はログアウト
-            store.dispatch({ type: 'auth/logout' });
+            // リフレッシュ失敗時はログアウト扱い
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
             window.location.href = '/login';
             return Promise.reject(refreshError);
           }
@@ -96,12 +87,11 @@ class ApiClient {
 
         // エラーメッセージの整形
         const errorMessage = this.extractErrorMessage(error);
-        
         return Promise.reject({
           message: errorMessage,
           status: error.response?.status,
           code: error.response?.data?.error_code,
-          original: error
+          original: error,
         });
       }
     );
@@ -112,12 +102,8 @@ class ApiClient {
   }
 
   private extractErrorMessage(error: AxiosError<ErrorResponse>): string {
-    if (error.response?.data?.detail) {
-      return error.response.data.detail;
-    }
-    if (error.message) {
-      return error.message;
-    }
+    if (error.response?.data?.detail) return error.response.data.detail;
+    if (error.message) return error.message;
     return 'An unexpected error occurred';
   }
 
@@ -128,28 +114,23 @@ class ApiClient {
 
     this.refreshingToken = new Promise(async (resolve, reject) => {
       try {
-        const state = store.getState();
-        const refreshToken = state.auth?.refreshToken;
-        
+        const refreshToken = localStorage.getItem('refresh_token');
         if (!refreshToken) {
           throw new Error('No refresh token available');
         }
-
         const response = await this.client.post('/auth/refresh', {
-          refresh_token: refreshToken
+          refresh_token: refreshToken,
         });
-
-        const newToken = response.data.data.access_token;
-        
-        // ストアを更新
-        store.dispatch({
-          type: 'auth/tokenRefreshed',
-          payload: { token: newToken }
-        });
-
+        const newToken: string | undefined = (response.data?.data?.access_token) || response.data?.access_token;
+        const newRefresh: string | undefined = (response.data?.data?.refresh_token) || response.data?.refresh_token;
+        if (!newToken) throw new Error('No access token in refresh response');
+        localStorage.setItem('access_token', newToken);
+        if (newRefresh) {
+          localStorage.setItem('refresh_token', newRefresh);
+        }
         resolve(newToken);
-      } catch (error) {
-        reject(error);
+      } catch (err) {
+        reject(err);
       } finally {
         this.refreshingToken = null;
       }
@@ -192,9 +173,7 @@ class ApiClient {
     formData.append('file', file);
 
     return this.post(url, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -207,28 +186,21 @@ class ApiClient {
   // === ストリーミング ===
 
   async *stream<T = any>(url: string, config?: AxiosRequestConfig): AsyncGenerator<T> {
-    const response = await this.client.get(url, {
-      ...config,
-      responseType: 'stream',
-    });
-
-    const reader = response.data.getReader();
+    const response = await this.client.get(url, { ...config, responseType: 'stream' });
+    const reader = (response.data as any).getReader();
     const decoder = new TextDecoder();
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       const chunk = decoder.decode(value);
       const lines = chunk.split('\n');
-
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6));
             yield data;
-          } catch (e) {
-            // Invalid JSON, skip
+          } catch {
+            // ignore invalid json
           }
         }
       }
@@ -237,12 +209,8 @@ class ApiClient {
 
   // === バッチリクエスト ===
 
-  async batch<T = any>(requests: Array<{
-    method: string;
-    url: string;
-    data?: any;
-  }>): Promise<ApiResponse<T[]>> {
-    const promises = requests.map(req => {
+  async batch<T = any>(requests: Array<{ method: string; url: string; data?: any; }>): Promise<ApiResponse<T[]>> {
+    const promises = requests.map((req) => {
       switch (req.method.toLowerCase()) {
         case 'get':
           return this.get(req.url);
@@ -258,18 +226,9 @@ class ApiClient {
           throw new Error(`Unsupported method: ${req.method}`);
       }
     });
-
     const results = await Promise.allSettled(promises);
-    
-    const data = results.map(result => 
-      result.status === 'fulfilled' ? result.value.data : null
-    ).filter(Boolean);
-
-    return {
-      success: true,
-      data: data as T[],
-      timestamp: new Date().toISOString()
-    };
+    const data = results.map((r) => (r.status === 'fulfilled' ? r.value.data : null)).filter(Boolean);
+    return { success: true, data: data as T[], timestamp: new Date().toISOString() };
   }
 
   // === キャンセル可能なリクエスト ===
@@ -285,5 +244,4 @@ class ApiClient {
 
 // シングルトンインスタンス
 const apiClient = new ApiClient();
-
 export default apiClient;

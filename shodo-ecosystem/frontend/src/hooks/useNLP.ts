@@ -5,7 +5,7 @@ import nlpService, {
   NLPSession,
   RuleDefinition,
   NLPBatchRequest,
-  NLPBatchResponse
+  NLPBatchResponse,
 } from '../services/api/nlp.service';
 
 // クエリキー
@@ -31,9 +31,7 @@ export function useAnalyzeText() {
       // セッション一覧を再取得
       if (data.session_id) {
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.sessions });
-        queryClient.invalidateQueries({ 
-          queryKey: QUERY_KEYS.analysisHistory(data.session_id) 
-        });
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.analysisHistory(data.session_id) });
       }
     },
   });
@@ -52,17 +50,17 @@ export function useAnalyzeBatch() {
  * セッション一覧取得フック（無限スクロール対応）
  */
 export function useNLPSessions() {
-  return useInfiniteQuery({
+  return useInfiniteQuery<{ pages: Array<any>; pageParams: Array<number> }, Error, any, (string | string[])[], number>({
     queryKey: QUERY_KEYS.sessions,
-    queryFn: ({ pageParam = 1 }) => 
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
       nlpService.getSessions({
         page: pageParam,
         per_page: 20,
         sort_by: 'created_at',
         sort_order: 'desc',
       }),
-    getNextPageParam: (lastPage) => 
-      lastPage.has_next ? lastPage.page + 1 : undefined,
+    getNextPageParam: (lastPage: any) => (lastPage.has_next ? (lastPage.page as number) + 1 : undefined),
     staleTime: 5 * 60 * 1000, // 5分
   });
 }
@@ -98,10 +96,7 @@ export function useDeleteNLPSession() {
 /**
  * ルール一覧取得フック
  */
-export function useNLPRules(params?: {
-  category?: string;
-  is_active?: boolean;
-}) {
+export function useNLPRules(params?: { category?: string; is_active?: boolean }) {
   return useQuery<RuleDefinition[], Error>({
     queryKey: [...QUERY_KEYS.rules, params],
     queryFn: () => nlpService.getRules(params),
@@ -163,15 +158,15 @@ export function useDeleteRule() {
  * 解析履歴取得フック（無限スクロール対応）
  */
 export function useAnalysisHistory(sessionId: string) {
-  return useInfiniteQuery({
+  return useInfiniteQuery<{ pages: Array<any>; pageParams: Array<number> }, Error, any, (string | string[])[], number>({
     queryKey: QUERY_KEYS.analysisHistory(sessionId),
-    queryFn: ({ pageParam = 1 }) => 
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
       nlpService.getAnalysisHistory(sessionId, {
         page: pageParam,
         per_page: 10,
       }),
-    getNextPageParam: (lastPage) => 
-      lastPage.has_next ? lastPage.page + 1 : undefined,
+    getNextPageParam: (lastPage: any) => (lastPage.has_next ? (lastPage.page as number) + 1 : undefined),
     enabled: !!sessionId,
     staleTime: 5 * 60 * 1000,
   });
@@ -191,10 +186,7 @@ export function useNLPCategories() {
 /**
  * 統計情報取得フック
  */
-export function useNLPStatistics(params?: {
-  start_date?: string;
-  end_date?: string;
-}) {
+export function useNLPStatistics(params?: { start_date?: string; end_date?: string }) {
   return useQuery({
     queryKey: [...QUERY_KEYS.statistics, params],
     queryFn: () => nlpService.getStatistics(params),
