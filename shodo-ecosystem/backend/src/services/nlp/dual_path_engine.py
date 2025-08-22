@@ -16,6 +16,7 @@ import logging
 import httpx
 from pydantic import BaseModel
 from cachetools import TTLCache
+from ...utils.correlation import get_correlation_id
 
 logger = logging.getLogger(__name__)
 
@@ -337,6 +338,9 @@ class DualPathEngine:
                         "text": text,
                         "context": context,
                         "mode": "ai_only"
+                    },
+                    headers={
+                        "X-Correlation-ID": get_correlation_id(None)
                     },
                     timeout=5.0
                 )

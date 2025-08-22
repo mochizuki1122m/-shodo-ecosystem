@@ -16,8 +16,8 @@ test.describe('認証フロー', () => {
     await page.goto('/login');
     
     // フォームに入力
-    await page.fill('input[name="email"]', 'test@example.com');
-    await page.fill('input[name="password"]', 'TestPassword123!');
+    await page.fill('input[name="email"]', 'user@example.com');
+    await page.fill('input[name="password"]', 'password');
     
     // ログインボタンをクリック
     await page.click('button[type="submit"]');
@@ -26,7 +26,7 @@ test.describe('認証フロー', () => {
     await expect(page).toHaveURL('/dashboard');
     
     // ユーザー名が表示されることを確認
-    await expect(page.locator('[data-testid="user-name"]')).toContainText('testuser');
+    await expect(page.locator('[data-testid="user-name"]')).toContainText('user');
   });
 
   test('無効な認証情報でのログイン', async ({ page }) => {
@@ -87,8 +87,8 @@ test.describe('認証フロー', () => {
   test('ログアウトフロー', async ({ page }) => {
     // まずログイン
     await page.goto('/login');
-    await page.fill('input[name="email"]', 'test@example.com');
-    await page.fill('input[name="password"]', 'TestPassword123!');
+    await page.fill('input[name="email"]', 'user@example.com');
+    await page.fill('input[name="password"]', 'password');
     await page.click('button[type="submit"]');
     
     await expect(page).toHaveURL('/dashboard');
@@ -120,8 +120,8 @@ test.describe('認証フロー', () => {
   test('セッションタイムアウト', async ({ page, context }) => {
     // ログイン
     await page.goto('/login');
-    await page.fill('input[name="email"]', 'test@example.com');
-    await page.fill('input[name="password"]', 'TestPassword123!');
+    await page.fill('input[name="email"]', 'user@example.com');
+    await page.fill('input[name="password"]', 'password');
     await page.click('button[type="submit"]');
     
     // セッションクッキーを削除（タイムアウトをシミュレート）

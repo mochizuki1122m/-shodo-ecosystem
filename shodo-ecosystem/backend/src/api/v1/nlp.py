@@ -14,7 +14,7 @@ from ...services.nlp.dual_path_engine import DualPathEngine, AnalysisResult
 from ...core.config import settings
 from ...core.security import InputSanitizer, PIIMasking
 from ...middleware.auth import get_current_user
-from ...middleware.rate_limit import rate_limit
+# from ...middleware.rate_limit import rate_limit  # 削除: ルート用デコレータ未実装のため
 from ...utils.correlation import get_correlation_id
 
 logger = structlog.get_logger()
@@ -40,7 +40,7 @@ nlp_engine = DualPathEngine(
     summary="Analyze natural language input",
     description="Process Japanese text using dual-path analysis engine"
 )
-@rate_limit(limit=30)  # 30 requests per minute
+# @rate_limit(limit=30)  # 削除
 async def analyze_text(
     request: NLPRequest,
     req: Request,
@@ -67,7 +67,7 @@ async def analyze_text(
         # Log with PII masking
         logger.info(
             "NLP analysis request",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             text_length=len(sanitized_text),
             mode=request.mode,
@@ -103,7 +103,7 @@ async def analyze_text(
         
         logger.info(
             "NLP analysis completed",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             intent=response_data.intent,
             confidence=response_data.confidence,
@@ -121,7 +121,7 @@ async def analyze_text(
     except ValueError as e:
         logger.warning(
             "NLP analysis validation error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e)
         )
@@ -134,7 +134,7 @@ async def analyze_text(
     except Exception as e:
         logger.error(
             "NLP analysis error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e),
             exc_info=True
@@ -151,7 +151,7 @@ async def analyze_text(
     summary="Refine analysis with additional context",
     description="Refine previous analysis result with clarification"
 )
-@rate_limit(limit=20)
+# @rate_limit(limit=20)  # 削除
 async def refine_analysis(
     current_result: NLPAnalysisData,
     refinement: str,
@@ -203,7 +203,7 @@ async def refine_analysis(
     except Exception as e:
         logger.error(
             "Refinement error",
-            user_id=current_user.id,
+            user_id=current_user.user_id,
             correlation_id=correlation_id,
             error=str(e),
             exc_info=True
