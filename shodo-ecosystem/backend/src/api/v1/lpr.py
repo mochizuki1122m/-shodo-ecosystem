@@ -29,8 +29,9 @@ from ...services.audit.audit_logger import (
     AuditEventType,
     AuditSeverity,
 )
-from ...middleware.security import get_current_user
+from ...middleware.auth import get_current_user
 from ...core.config import settings
+from ...schemas.base import BaseResponse, error_response
 
 # 構造化ログ
 logger = structlog.get_logger()
@@ -89,6 +90,21 @@ class LPRIssueResponse(BaseModel):
     expires_at: Optional[datetime] = None
     scopes: Optional[List[Dict[str, str]]] = None
     error: Optional[str] = None
+
+class LPRTokenData(BaseModel):
+    """LPRトークンデータ (BaseResponse用)"""
+    token: str
+    jti: str
+    expires_at: Optional[str] = None
+    scopes: List[Dict[str, str]] = []
+
+class LPRVerifyData(BaseModel):
+    """LPR検証結果データ (BaseResponse用)"""
+    valid: bool
+    jti: Optional[str] = None
+    service: Optional[str] = None
+    scopes: Optional[List[Dict[str, str]]] = None
+    # 追加で必要なら subject などを拡張可能
 
 class LPRStatusResponse(BaseModel):
     """LPRステータスレスポンス"""
@@ -201,23 +217,29 @@ async def start_visible_login(
         
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/issue", response_model=LPRIssueResponse)
+@router.post("/issue", response_model=BaseResponse[LPRTokenData])
 async def issue_lpr_token(
     request: Request,
     body: LPRIssueRequest,
     current_user: Dict = Depends(get_current_user),
-) -> LPRIssueResponse:
+) -> BaseResponse[LPRTokenData]:
     """LPRトークンを発行"""
     
     try:
         # セッションの検証
         session = await secure_session_storage.retrieve_session(body.session_id)
         if not session:
-            raise HTTPException(status_code=400, detail="Invalid or expired session")
+            return error_response(
+                code="LPR_SESSION_INVALID",
+                message="Invalid or expired session"
+            )
         
         # セッションのユーザーと一致するか確認
         if session["user_id"] != current_user["sub"]:
-            raise HTTPException(status_code=403, detail="Session user mismatch")
+            return error_response(
+                code="LPR_SESSION_USER_MISMATCH",
+                message="Session user mismatch"
+            )
         
         # スコープの変換
         scopes = [
@@ -271,16 +293,16 @@ async def issue_lpr_token(
             }
         )
         
-        return LPRIssueResponse(
+        return BaseResponse[LPRTokenData](
             success=True,
-            token=result['token'],
-            jti=result['jti'],
-            expires_at=result.get('expires_at'),
-            scopes=body.scopes,
+            data=LPRTokenData(
+                token=result['token'],
+                jti=result['jti'],
+                expires_at=result.get('expires_at'),
+                scopes=body.scopes,
+            )
         )
     
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error("LPR token issuance failed", error=str(e))
         
@@ -294,16 +316,13 @@ async def issue_lpr_token(
             details={"error": str(e)}
         )
         
-        return LPRIssueResponse(
-            success=False,
-            error=str(e),
-        )
+        return error_response(code="LPR_ISSUE_FAILED", message=str(e))
 
-@router.post("/verify")
+@router.post("/verify", response_model=BaseResponse[LPRVerifyData])
 async def verify_lpr_token(
     request: Request,
     body: LPRVerifyRequest,
-) -> Dict[str, Any]:
+) -> BaseResponse[LPRVerifyData]:
     """LPRトークンを検証"""
     
     try:
@@ -336,13 +355,16 @@ async def verify_lpr_token(
                 }
             )
             
-            return {
-                "valid": True,
-                "jti": verification.get("jti"),
-                "subject": verification.get("user_id"),
-                "expires_at": verification.get("expires_at"),
-                "correlation_id": verification.get("correlation_id"),
-            }
+            return BaseResponse[LPRVerifyData](
+                success=True,
+                data=LPRVerifyData(
+                    valid=True,
+                    jti=verification.get("jti"),
+                    service=verification.get("service"),
+                    scopes=verification.get("scopes"),
+                ),
+                correlation_id=verification.get("correlation_id")
+            )
         else:
             # 監査ログ
             await audit_logger.log(
@@ -360,21 +382,21 @@ async def verify_lpr_token(
                 }
             )
             
-            return {
-                "valid": False,
-                "error": verification.get("error"),
-            }
+            return error_response(
+                code="LPR_VERIFICATION_FAILED",
+                message=verification.get("error", "Verification failed")
+            )
     
     except Exception as e:
         logger.error("LPR token verification failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="LPR_VERIFY_ERROR", message=str(e))
 
-@router.post("/revoke")
+@router.post("/revoke", response_model=BaseResponse[Dict[str, Any]])
 async def revoke_lpr_token(
     request: Request,
     body: LPRRevokeRequest,
     current_user: Dict = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> BaseResponse[Dict[str, Any]]:
     """LPRトークンを失効"""
     
     try:
@@ -402,15 +424,9 @@ async def revoke_lpr_token(
                 }
             )
             
-            return {
-                "success": True,
-                "message": f"Token {body.jti} has been revoked",
-            }
+            return BaseResponse(success=True, data={"message": f"Token {body.jti} has been revoked"})
         else:
-            return {
-                "success": False,
-                "error": "Failed to revoke token",
-            }
+            return error_response(code="LPR_REVOKE_FAILED", message="Failed to revoke token")
     
     except Exception as e:
         logger.error("LPR token revocation failed", error=str(e))
@@ -425,7 +441,7 @@ async def revoke_lpr_token(
             details={"error": str(e)}
         )
         
-        raise HTTPException(status_code=500, detail=str(e))
+        return error_response(code="LPR_REVOKE_ERROR", message=str(e))
 
 @router.get("/status/{jti}", response_model=LPRStatusResponse)
 async def get_lpr_status(
