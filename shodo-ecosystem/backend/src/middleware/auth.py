@@ -66,7 +66,7 @@ async def verify_jwt_token(token: str) -> Optional[TokenClaims]:
             )
         else:
             # 開発: HS256 with secret
-            secret_key = settings.secret_key if hasattr(settings, 'secret_key') else settings.jwt_secret_key
+            secret_key = (settings.secret_key.get_secret_value() if hasattr(settings, 'secret_key') else settings.jwt_secret_key.get_secret_value())
             payload = jwt.decode(
                 token,
                 secret_key,

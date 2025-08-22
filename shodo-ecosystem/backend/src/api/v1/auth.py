@@ -126,13 +126,13 @@ def create_access_token(
         if not private_key:
             # フォールバック
             algorithm = 'HS256'
-            secret = settings.secret_key if hasattr(settings, 'secret_key') else settings.jwt_secret_key
+            secret = (settings.secret_key.get_secret_value() if hasattr(settings, 'secret_key') else settings.jwt_secret_key.get_secret_value())
             token = jwt.encode(claims, secret, algorithm=algorithm)
         else:
             token = jwt.encode(claims, private_key, algorithm='RS256')
     else:
         # 開発: HS256
-        secret = settings.secret_key if hasattr(settings, 'secret_key') else settings.jwt_secret_key
+        secret = (settings.secret_key.get_secret_value() if hasattr(settings, 'secret_key') else settings.jwt_secret_key.get_secret_value())
         token = jwt.encode(claims, secret, algorithm='HS256')
     
     return token, expires_in

@@ -109,6 +109,10 @@ class RateLimiter:
     async def _ensure_redis_connection(self) -> bool:
         """Redis接続を確保（lazy initialization）"""
         if not self.use_redis:
+            # 本番環境ではRedis必須
+            from ..core.config import settings as _settings
+            if _settings.is_production():
+                return False
             return False
             
         if self.redis is None and not self._redis_checked:
@@ -121,6 +125,11 @@ class RateLimiter:
             except Exception as e:
                 logger.warning(f"Redis not available for rate limiting: {e}")
                 self._redis_checked = True
+                # 本番環境ではフォールバック無効
+                from ..core.config import settings as _settings2
+                if _settings2.is_production():
+                    self.use_redis = True  # 強制
+                    return False
                 self.use_redis = False
                 return False
         
@@ -148,6 +157,11 @@ class RateLimiter:
     ) -> Tuple[bool, Dict[str, int]]:
         """Redis使用時のレート制限チェック"""
         if not await self._ensure_redis_connection():
+            # 本番環境ではRedis未接続時は拒否
+            from ..core.config import settings as _settings
+            if _settings.is_production():
+                logger.error("Rate limit denied: Redis unavailable in production")
+                return False, {"retry_after": 60}
             logger.debug("Falling back to memory-based rate limiting")
             return await self._check_memory_limit(client_id, path, limits)
         

@@ -78,16 +78,4 @@ USER appuser
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production server with optimized settings
-CMD ["uvicorn", "src.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--workers", "4", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--loop", "uvloop", \
-     "--access-log", \
-     "--log-level", "info", \
-     "--proxy-headers", \
-     "--forwarded-allow-ips", "*", \
-     "--timeout-keep-alive", "5", \
-     "--max-requests", "1000", \
-     "--max-requests-jitter", "100"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--loop", "uvloop", "--access-log", "--log-level", "info", "--proxy-headers", "--forwarded-allow-ips", "*", "--timeout-keep-alive", "5", "--max-requests", "1000", "--max-requests-jitter", "100"]

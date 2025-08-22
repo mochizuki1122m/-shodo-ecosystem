@@ -5,7 +5,7 @@
 
 import os
 from typing import List, Optional
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings, Field, SecretStr
 from functools import lru_cache
 
 class Settings(BaseSettings):
@@ -41,14 +41,15 @@ class Settings(BaseSettings):
     vllm_timeout: int = Field(default=30, env="VLLM_TIMEOUT")
     vllm_retry_count: int = Field(default=3, env="VLLM_RETRY_COUNT")
     model_name: str = Field(default="openai/gpt-oss-20b", env="MODEL_NAME")
+    inference_engine: str = Field(default="vllm", env="INFERENCE_ENGINE")
     
     # セキュリティ設定
-    secret_key: str = Field(
-        default="change-this-in-production-to-a-secure-random-string",
+    secret_key: SecretStr = Field(
+        default=SecretStr("change-this-in-production-to-a-secure-random-string"),
         env="SECRET_KEY"
     )
-    jwt_secret_key: str = Field(
-        default="change-this-in-production-to-a-secure-random-string",
+    jwt_secret_key: SecretStr = Field(
+        default=SecretStr("change-this-in-production-to-a-secure-random-string"),
         env="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
@@ -59,8 +60,8 @@ class Settings(BaseSettings):
     jwt_expiration_hours: int = Field(default=1, env="JWT_EXPIRATION_HOURS")
     
     # 暗号化設定
-    encryption_key: str = Field(
-        default="change-this-in-production-to-a-secure-random-string",
+    encryption_key: SecretStr = Field(
+        default=SecretStr("change-this-in-production-to-a-secure-random-string"),
         env="ENCRYPTION_KEY"
     )
     
@@ -132,7 +133,7 @@ class Settings(BaseSettings):
                 raise ValueError("JWT keys are required in production (JWT_PRIVATE_KEY, JWT_PUBLIC_KEY)")
             # 既定の脆弱なキーが残っていれば失敗
             weak = "change-this-in-production-to-a-secure-random-string"
-            if self.secret_key == weak or self.jwt_secret_key == weak or self.encryption_key == weak:
+            if self.secret_key.get_secret_value() == weak or self.jwt_secret_key.get_secret_value() == weak or self.encryption_key.get_secret_value() == weak:
                 raise ValueError("Default secrets must be overridden in production")
 
     class Config:
