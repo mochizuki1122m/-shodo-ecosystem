@@ -2,31 +2,20 @@
 ヘルスチェックエンドポイント
 """
 
-from fastapi import APIRouter
-from typing import Dict
-import os
+import asyncio
+from typing import Dict, Any, Optional
+from datetime import datetime, timezone
+from enum import Enum
+
+from fastapi import APIRouter, Request, Response, status
+import structlog
 import httpx
-from datetime import datetime
 
 from ...schemas.common import HealthCheck
+from ...schemas.base import BaseResponse
+from ...services.database import check_database_health, check_redis_health
 
 router = APIRouter()
-
-async def check_database() -> bool:
-    """データベース接続チェック"""
-    try:
-        # TODO: 実際のDB接続チェック
-        return True
-    except Exception:
-        return False
-
-async def check_redis() -> bool:
-    """Redis接続チェック"""
-    try:
-        # TODO: 実際のRedis接続チェック
-        return True
-    except Exception:
-        return False
 
 async def check_vllm() -> bool:
     """vLLMサーバー接続チェック"""
@@ -46,8 +35,8 @@ async def health_check():
     システムの健全性を確認します。
     """
     services = {
-        "database": await check_database(),
-        "redis": await check_redis(),
+        "database": await check_database_health(),
+        "redis": await check_redis_health(),
         "vllm": await check_vllm(),
     }
     
@@ -68,8 +57,8 @@ async def readiness_check():
     サービスがリクエストを受け付ける準備ができているか確認します。
     """
     # 必須サービスのチェック
-    db_ready = await check_database()
-    redis_ready = await check_redis()
+    db_ready = await check_database_health()
+    redis_ready = await check_redis_health()
     
     if db_ready and redis_ready:
         return {"status": "ready"}

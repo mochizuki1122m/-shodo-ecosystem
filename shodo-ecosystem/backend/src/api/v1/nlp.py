@@ -3,13 +3,11 @@ NLP API endpoints
 MUST: OpenAPI compliant, BaseResponse pattern
 """
 
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Request
 import structlog
 
 from ...schemas.base import BaseResponse, error_response
-from ...schemas.nlp import NLPRequest, NLPResponse, NLPAnalysisData
+from ...schemas.nlp import NLPRequest, NLPAnalysisData
 from ...services.nlp.dual_path_engine import DualPathEngine, AnalysisResult
 from ...core.config import settings
 from ...core.security import InputSanitizer, PIIMasking

@@ -18,7 +18,6 @@ from ...services.preview.sandbox_engine import (
 from ...core.config import settings
 from ...core.security import InputSanitizer
 from ...middleware.auth import get_current_user
-from ...middleware.rate_limit import rate_limit
 from ...utils.correlation import get_correlation_id
 
 logger = structlog.get_logger()
@@ -47,7 +46,6 @@ preview_storage = {}
     summary="Generate preview",
     description="Generate a sandbox preview with changes"
 )
-@rate_limit(limit=20)
 async def generate_preview(
     request: PreviewRequest,
     req: Request,
@@ -170,7 +168,6 @@ async def generate_preview(
     summary="Refine preview",
     description="Refine existing preview with natural language"
 )
-@rate_limit(limit=30)
 async def refine_preview(
     preview_id: str,
     request: RefineRequest,
@@ -260,7 +257,6 @@ async def refine_preview(
     summary="Apply preview to production",
     description="Apply sandbox preview to production environment"
 )
-@rate_limit(limit=5)
 async def apply_preview(
     preview_id: str,
     request: ApplyRequest,
@@ -336,7 +332,6 @@ async def apply_preview(
     summary="Rollback to previous version",
     description="Rollback to a specific version"
 )
-@rate_limit(limit=5)
 async def rollback_version(
     version_id: str,
     req: Request,
