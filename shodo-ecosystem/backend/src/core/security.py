@@ -80,22 +80,44 @@ class InputSanitizer:
     
     @staticmethod
     def sanitize_string(value: str, max_length: int = 1000) -> str:
-        """Sanitize string input"""
-        if not value:
+        """Sanitize string input (Unicode-friendly)
+        - NULLや制御文字(カテゴリ=Cc/Cf)の除去
+        - 最大長で切り詰め
+        - 前後空白のトリム
+        日本語・多言語文字は保持
+        """
+        if value is None:
             return ""
+        if not isinstance(value, str):
+            try:
+                value = str(value)
+            except Exception:
+                return ""
         
-        # Remove null bytes
-        value = value.replace('\x00', '')
+        # 長さ制限（先に軽く丸めて負荷低減）
+        if len(value) > max_length * 2:
+            value = value[: max_length * 2]
         
-        # Truncate to max length
-        value = value[:max_length]
+        # 制御文字の除去（Unicodeカテゴリ）
+        import unicodedata
+        cleaned_chars = []
+        for ch in value:
+            cat = unicodedata.category(ch)
+            # Cc: Other, Control / Cf: Other, Format を除去。タブと改行は許可
+            if ch in ('\n', '\t'):
+                cleaned_chars.append(ch)
+                continue
+            if cat in ("Cc", "Cf"):
+                continue
+            cleaned_chars.append(ch)
+        cleaned = "".join(cleaned_chars)
         
-        # Remove control characters except newline and tab
-        import string
-        allowed = string.printable + '\n\t'
-        value = ''.join(c for c in value if c in allowed)
+        # 最終的な長さ制限
+        if len(cleaned) > max_length:
+            cleaned = cleaned[:max_length]
         
-        return value.strip()
+        # 前後のホワイトスペースをトリム
+        return cleaned.strip()
     
     @staticmethod
     def sanitize_json(data: dict) -> dict:
