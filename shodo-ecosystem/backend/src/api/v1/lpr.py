@@ -4,9 +4,8 @@ LPR (Limited Proxy Rights) API エンドポイント
 LPRトークンの発行、検証、失効、ステータス確認のAPIを提供。
 """
 
-import secrets
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Body, Query
 from fastapi.security import HTTPBearer
@@ -30,7 +29,6 @@ from ...services.audit.audit_logger import (
     AuditSeverity,
 )
 from ...middleware.auth import get_current_user
-from ...core.config import settings
 from ...schemas.base import BaseResponse, error_response
 
 # 構造化ログ

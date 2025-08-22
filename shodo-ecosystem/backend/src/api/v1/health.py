@@ -2,17 +2,12 @@
 ヘルスチェックエンドポイント
 """
 
-import asyncio
-from typing import Dict, Any, Optional
-from datetime import datetime, timezone
-from enum import Enum
-
-from fastapi import APIRouter, Request, Response, status
-import structlog
+from datetime import datetime
+import os
+from fastapi import APIRouter
 import httpx
 
 from ...schemas.common import HealthCheck
-from ...schemas.base import BaseResponse
 from ...services.database import check_database_health, check_redis_health
 
 router = APIRouter()

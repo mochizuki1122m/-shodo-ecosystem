@@ -4,16 +4,15 @@ SSOT準拠、BaseResponse統一、JWT標準化実装
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 import uuid
 import hashlib
-import secrets
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr, Field, validator
 from passlib.context import CryptContext
-from jose import jwt, JWTError
+from jose import jwt
 
-from ...schemas.base import BaseResponse, ErrorResponse, ErrorCode
+from ...schemas.base import BaseResponse
 from ...core.config import settings
 from ...services.database import get_db_session
 from ...middleware.auth import get_current_user, CurrentUser
@@ -171,7 +170,7 @@ async def register(
         # TODO: 実際のDBクエリに置き換え
         
         # パスワードのハッシュ化
-        hashed_password = hash_password(request.password)
+        _ = hash_password(request.password)  # 実DB保存実装時に使用
         
         # ユーザー作成
         user_id = str(uuid.uuid4())

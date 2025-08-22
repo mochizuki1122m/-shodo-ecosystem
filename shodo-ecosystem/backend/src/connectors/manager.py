@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional, Type
 import asyncio
 from datetime import datetime
 
-from .base import BaseSaaSConnector, ConnectorConfig, ConnectorCredentials, ConnectorType
+from .base import BaseSaaSConnector, ConnectorCredentials
 from .shopify import ShopifyConnector
 from .stripe import StripeConnector
 

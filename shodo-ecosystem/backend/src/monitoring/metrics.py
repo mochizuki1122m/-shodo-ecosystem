@@ -4,7 +4,7 @@ Prometheus メトリクス実装
 """
 
 import time
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 from prometheus_client import (
     Counter, Histogram, Gauge, Info,
     CollectorRegistry, generate_latest,

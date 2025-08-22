@@ -12,7 +12,7 @@ from ...schemas.preview import (
     RefineRequest, ApplyRequest
 )
 from ...services.preview.sandbox_engine import (
-    SandboxPreviewEngine
+    SandboxPreviewEngine, Change
 )
 from ...core.security import InputSanitizer
 from ...middleware.auth import get_current_user

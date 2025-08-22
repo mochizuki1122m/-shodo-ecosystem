@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from datetime import datetime
-import json
+
 from .auth import get_current_user
 
 router = APIRouter()

@@ -3,7 +3,7 @@ APIキー関連のデータベースモデル
 """
 
 from datetime import datetime
-from typing import Optional
+
 from sqlalchemy import Column, String, DateTime, Boolean, JSON, Text, ForeignKey, Integer, Index, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from enum import Enum

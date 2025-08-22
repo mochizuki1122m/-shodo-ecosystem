@@ -4,7 +4,7 @@ MUST: Consistent health checks across all services
 """
 
 import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -228,7 +228,7 @@ class HealthChecker:
                 status=HealthStatus.HEALTHY,
                 metadata={"workers": 4, "queues": ["default", "priority"]}
             )
-        except Exception as e:
+        except Exception:
             return ComponentHealth(
                 name="celery",
                 status=HealthStatus.DEGRADED,
