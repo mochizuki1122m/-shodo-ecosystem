@@ -121,6 +121,20 @@ class Settings(BaseSettings):
         """テスト環境かどうかを判定"""
         return self.environment.lower() == "testing"
 
+    def validate_security(self):
+        """本番時のセキュリティ設定を検証（必須設定が無ければFail-fast）"""
+        if self.is_production():
+            # JWT はRS256既定
+            if self.jwt_algorithm.upper() != "RS256":
+                self.jwt_algorithm = "RS256"
+            # 鍵が無ければ起動失敗
+            if not self.jwt_private_key or not self.jwt_public_key:
+                raise ValueError("JWT keys are required in production (JWT_PRIVATE_KEY, JWT_PUBLIC_KEY)")
+            # 既定の脆弱なキーが残っていれば失敗
+            weak = "change-this-in-production-to-a-secure-random-string"
+            if self.secret_key == weak or self.jwt_secret_key == weak or self.encryption_key == weak:
+                raise ValueError("Default secrets must be overridden in production")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
@@ -136,7 +150,14 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """設定のシングルトンインスタンスを取得"""
-    return Settings()
+    s = Settings()
+    # 本番検証
+    try:
+        s.validate_security()
+    except Exception as e:
+        # 早期にわかるよう例外を再送出
+        raise
+    return s
 
 # グローバル設定インスタンス
 settings = get_settings()

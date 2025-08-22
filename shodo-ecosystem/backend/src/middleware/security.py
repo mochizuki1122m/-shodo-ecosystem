@@ -12,8 +12,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """レート制限ミドルウェア"""
+class LegacyRateLimitMiddleware(BaseHTTPMiddleware):
+    """レート制限ミドルウェア（旧: 重複実装、統一のため非推奨）"""
     
     def __init__(self, app, requests_per_minute: int = 60, requests_per_hour: int = 1000):
         super().__init__(app)
@@ -175,15 +175,9 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         return response
 
 def setup_security_middleware(app, settings):
-    """セキュリティミドルウェアのセットアップ"""
+    """セキュリティミドルウェアのセットアップ（レート制限は統一ミドルウェアで実施）"""
     
-    # レート制限
-    if settings.rate_limit_enabled:
-        app.add_middleware(
-            RateLimitMiddleware,
-            requests_per_minute=settings.rate_limit_per_minute,
-            requests_per_hour=settings.rate_limit_per_hour
-        )
+    # レート制限は middleware/rate_limit.py の実装を使用（main側で追加済み）
     
     # セキュリティヘッダー
     app.add_middleware(SecurityHeadersMiddleware)
@@ -198,4 +192,4 @@ def setup_security_middleware(app, settings):
     # api_keys = {"service1": "key1", "service2": "key2"}
     # app.add_middleware(APIKeyMiddleware, api_keys=api_keys)
     
-    logger.info("Security middleware configured")
+    logger.info("Security middleware configured (rate limit unified)")

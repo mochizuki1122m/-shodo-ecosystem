@@ -7,6 +7,7 @@ from typing import Tuple
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 
@@ -28,10 +29,21 @@ async def init_db() -> Tuple[bool, bool]:
     
     try:
         # PostgreSQL接続
+        pool_kwargs = {}
+        poolclass = NullPool
+        if settings.is_production():
+            poolclass = QueuePool
+            pool_kwargs = {
+                "pool_size": getattr(settings, "database_pool_size", 10),
+                "max_overflow": getattr(settings, "database_max_overflow", 20),
+                "pool_pre_ping": True,
+                "pool_recycle": 1800,
+            }
         engine = create_async_engine(
             DATABASE_URL,
             echo=False,
-            poolclass=NullPool,  # 開発環境用
+            poolclass=poolclass,
+            **pool_kwargs
         )
         
         AsyncSessionLocal = sessionmaker(
