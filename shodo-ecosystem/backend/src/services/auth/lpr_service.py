@@ -317,7 +317,8 @@ class LPRService:
                 "expires_at": datetime.fromtimestamp(
                     claims.get("exp"),
                     tz=timezone.utc
-                ).isoformat()
+                ).isoformat(),
+                "correlation_id": claims.get("correlation_id")
             }
             
         except JWTError as e:
@@ -451,6 +452,40 @@ class LPRService:
         
         logger.info("LPR token cleanup completed")
         return 0
+
+    async def get_token_status(self, jti: str) -> Dict[str, Any]:
+        """Get token status and metadata by JTI"""
+        status = {
+            "status": "unknown",
+        }
+        if not self.redis:
+            return status
+        meta_json = await self.redis.get(f"lpr:token:{jti}")
+        if not meta_json:
+            status["status"] = "not_found"
+            return status
+        meta = json.loads(meta_json)
+        # Determine status by revocation and expiry
+        revoked = meta.get("revoked", False)
+        expires_at = meta.get("expires_at")
+        status.update({
+            "issued_at": meta.get("issued_at"),
+            "expires_at": expires_at,
+            "subject": meta.get("user_id"),
+            "scopes": len(meta.get("scopes", [])) if isinstance(meta.get("scopes"), list) else None,
+        })
+        if revoked:
+            status["status"] = "revoked"
+        else:
+            # Optionally, parse time to check expiration
+            try:
+                from datetime import datetime as _dt
+                from dateutil import parser as _parser  # optional; if unavailable, skip
+                exp_dt = _parser.isoparse(expires_at) if expires_at else None
+                status["status"] = "expired" if exp_dt and exp_dt < _dt.now(timezone.utc) else "active"
+            except Exception:
+                status["status"] = "active"
+        return status
 
 # Singleton instance
 lpr_service = None

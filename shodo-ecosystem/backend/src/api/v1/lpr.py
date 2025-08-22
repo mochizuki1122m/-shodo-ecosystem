@@ -224,7 +224,7 @@ async def issue_lpr_token(
             LPRScope(
                 method=scope["method"],
                 url_pattern=scope["url_pattern"],
-                description=scope.get("description"),
+                # description は LPRScope に存在しないため除外
             )
             for scope in body.scopes
         ]
@@ -275,7 +275,7 @@ async def issue_lpr_token(
             success=True,
             token=result['token'],
             jti=result['jti'],
-            expires_at=None,
+            expires_at=result.get('expires_at'),
             scopes=body.scopes,
         )
     
@@ -329,7 +329,7 @@ async def verify_lpr_token(
                 where="lpr_verify",
                 how="api",
                 result="success",
-                correlation_id=token.correlation_id,
+                correlation_id=verification.get("correlation_id"),
                 details={
                     "method": body.request_method,
                     "url": body.request_url,
@@ -341,7 +341,7 @@ async def verify_lpr_token(
                 "jti": verification.get("jti"),
                 "subject": verification.get("user_id"),
                 "expires_at": verification.get("expires_at"),
-                "correlation_id": None,
+                "correlation_id": verification.get("correlation_id"),
             }
         else:
             # 監査ログ
@@ -379,10 +379,11 @@ async def revoke_lpr_token(
     
     try:
         # トークンの失効
+        lpr_service = await get_lpr_service()
         success = await lpr_service.revoke_token(
             jti=body.jti,
             reason=body.reason,
-            revoked_by=current_user["sub"],
+            user_id=current_user["sub"],
         )
         
         if success:
@@ -435,6 +436,7 @@ async def get_lpr_status(
     
     try:
         # ステータス取得
+        lpr_service = await get_lpr_service()
         status = await lpr_service.get_token_status(jti)
         
         # 残りTTLの計算

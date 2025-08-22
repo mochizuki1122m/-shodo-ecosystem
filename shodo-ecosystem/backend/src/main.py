@@ -62,6 +62,12 @@ async def lifespan(app: FastAPI):
     
     logger.info("🚀 Starting Shodo Ecosystem Backend with LPR System")
     
+    # 起動状態フラグの初期化
+    app.state.startup_complete = False
+    app.state.ready = False
+    app.state.db_ready = False
+    app.state.redis_ready = False
+    
     # グレースフルシャットダウンマネージャーの初期化
     from .services.graceful_shutdown import shutdown_manager, add_shutdown_handler
     
@@ -82,6 +88,8 @@ async def lifespan(app: FastAPI):
     # データベース初期化
     try:
         db_success, redis_success = await init_db()
+        app.state.db_ready = bool(db_success)
+        app.state.redis_ready = bool(redis_success)
         logger.info(
             "Database initialization",
             postgres=db_success,
@@ -107,6 +115,14 @@ async def lifespan(app: FastAPI):
         debug=settings.debug,
         environment=settings.environment
     )
+    
+    # 起動完了/レディ状態の反映
+    try:
+        app.state.startup_complete = True
+        app.state.ready = bool(app.state.db_ready and app.state.redis_ready)
+    except Exception:
+        # state が使えない場合は無視
+        pass
     
     yield
     
@@ -250,6 +266,38 @@ async def simple_health_check() -> Dict[str, str]:
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
+
+# 追加: K8s プローブ整合用エンドポイント
+@app.get("/health/live")
+async def liveness_probe() -> Dict[str, str]:
+    """liveness probe: プロセスが生きているか（軽量）"""
+    return {"status": "alive"}
+
+@app.get("/health/ready")
+async def readiness_probe() -> Dict[str, Any]:
+    """readiness probe: 依存サービスが利用可能か"""
+    try:
+        # アプリ起動完了と依存サービス
+        is_startup_complete = getattr(app.state, "startup_complete", False)
+        connections = await check_all_connections()
+        ready = is_startup_complete and (connections.get("overall") == "healthy")
+        return {
+            "status": "ready" if ready else "not_ready",
+            "startup_complete": is_startup_complete,
+            "dependencies": connections
+        }
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        return {"status": "not_ready", "error": str(e)}
+
+@app.get("/health/startup")
+async def startup_probe() -> Dict[str, Any]:
+    """startup probe: 起動シーケンスの完了状態を返す"""
+    try:
+        is_startup_complete = getattr(app.state, "startup_complete", False)
+        return {"status": "started" if is_startup_complete else "starting"}
+    except Exception:
+        return {"status": "starting"}
 
 @app.get("/")
 async def root():
