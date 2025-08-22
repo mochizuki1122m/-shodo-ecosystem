@@ -9,10 +9,11 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const token = localStorage.getItem('authToken');
+  const token = localStorage.getItem('access_token');
 
-  // 開発環境では認証をスキップ
-  if (process.env.NODE_ENV === 'development') {
+  // 明示的フラグでバイパス（開発時のみに使用）
+  const disableAuthGuard = (process.env.REACT_APP_DISABLE_AUTH_GUARD || 'false') === 'true';
+  if (disableAuthGuard) {
     return <>{children}</>;
   }
 

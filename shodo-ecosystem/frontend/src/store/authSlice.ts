@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { login as apiLogin, logout as apiLogout, getCurrentUser } from '../services/api';
 
 interface User {
   id: string;
@@ -25,24 +24,46 @@ const initialState: AuthState = {
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }: { email: string; password: string }) => {
-    const response = await apiLogin(email, password);
-    // BaseResponse形式に対応: response.data.access_token
-    if (response.success && response.data) {
-      localStorage.setItem('authToken', response.data.access_token);
-      return response.data.user;
+    // フロントの共通クライアントを直接使用
+    const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || 'Login failed');
     }
-    throw new Error(response.error || 'Login failed');
+    // トークン保存はlocalStorageで一元管理
+    const access = data.data?.access_token || data.access_token;
+    const refresh = data.data?.refresh_token || data.refresh_token;
+    if (access) localStorage.setItem('access_token', access);
+    if (refresh) localStorage.setItem('refresh_token', refresh);
+    return data.data?.user || data.user;
   }
 );
 
 export const logout = createAsyncThunk('auth/logout', async () => {
-  await apiLogout();
-  localStorage.removeItem('authToken');
+  try {
+    await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/logout`, { method: 'POST' });
+  } finally {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  }
 });
 
 export const fetchCurrentUser = createAsyncThunk('auth/fetchCurrentUser', async () => {
-  const response = await getCurrentUser();
-  return response;
+  const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/me`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`,
+    },
+  });
+  const data = await res.json();
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.error || 'Failed to fetch current user');
+  }
+  return data.data;
 });
 
 const authSlice = createSlice({
@@ -60,7 +81,7 @@ const authSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(login.fulfilled, (state, action) => {
+      .addCase(login.fulfilled, (state, action: PayloadAction<User>) => {
         state.isLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload;
@@ -78,7 +99,7 @@ const authSlice = createSlice({
         state.user = null;
       })
       // Fetch current user
-      .addCase(fetchCurrentUser.fulfilled, (state, action) => {
+      .addCase(fetchCurrentUser.fulfilled, (state, action: PayloadAction<User>) => {
         state.isAuthenticated = true;
         state.user = action.payload;
       })
