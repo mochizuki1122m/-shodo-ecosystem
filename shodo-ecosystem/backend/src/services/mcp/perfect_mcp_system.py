@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import signal
 import sys
 from pathlib import Path
+import importlib
 
 # Internal imports
 from .perfect_mcp_engine import (

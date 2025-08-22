@@ -12,6 +12,7 @@ from enum import Enum
 import structlog
 from datetime import datetime
 import uuid
+import httpx
 
 # FastAPI and related
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect

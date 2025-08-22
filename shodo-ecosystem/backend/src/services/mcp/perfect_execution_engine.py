@@ -17,6 +17,9 @@ import threading
 import queue
 import signal
 import psutil
+import httpx
+
+from .perfect_mcp_engine import MCPOperationResult, MCPConnectionStrategy
 
 # Browser automation
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError
