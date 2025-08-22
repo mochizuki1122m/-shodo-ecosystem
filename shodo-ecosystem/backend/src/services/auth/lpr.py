@@ -8,7 +8,6 @@ from typing import Dict, Optional, List, Any
 import json
 import uuid
 
-from sqlalchemy import select
 
 from ...models.models import User, Session  # noqa: F401
 from ...core.exceptions import AuthenticationException, AuthorizationException
