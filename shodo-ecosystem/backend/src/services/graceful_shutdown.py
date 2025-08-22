@@ -6,9 +6,9 @@
 import asyncio
 import signal
 import logging
-import time
-from typing import List, Callable, Dict, Any
+from typing import List, Callable
 from contextlib import asynccontextmanager
+from time import time as _time
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class GracefulShutdownManager:
         self.is_shutting_down = True
         logger.info("🛑 Starting graceful shutdown...")
         
-        start_time = time.time()
+        start_time = _time()
         
         try:
             # シャットダウンハンドラーを逆順で実行
@@ -59,7 +59,7 @@ class GracefulShutdownManager:
                 except Exception as e:
                     logger.error(f"❌ Error in shutdown handler {handler.__name__}: {e}")
             
-            elapsed = time.time() - start_time
+            elapsed = _time() - start_time
             logger.info(f"✅ Graceful shutdown completed in {elapsed:.2f}s")
             
         except Exception as e:
@@ -130,7 +130,7 @@ async def flush_logs():
     """ログのフラッシュ"""
     try:
         # 構造化ログのフラッシュ
-        import structlog
+        import structlog  # noqa: F401
         logger.info("Flushing logs...")
         
         # 少し待ってログが確実に出力されるようにする

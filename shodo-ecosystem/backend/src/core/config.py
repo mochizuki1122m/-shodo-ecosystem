@@ -3,7 +3,6 @@
 全ての設定をこのファイルに集約
 """
 
-import os
 from typing import List, Optional
 from pydantic import BaseSettings, Field, SecretStr
 from functools import lru_cache
@@ -155,7 +154,7 @@ def get_settings() -> Settings:
     # 本番検証
     try:
         s.validate_security()
-    except Exception as e:
+    except Exception:
         # 早期にわかるよう例外を再送出
         raise
     return s

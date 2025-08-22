@@ -2,17 +2,16 @@
 データベース統合版APIキー管理システム
 """
 
-import os
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
-import httpx
+
 
 from ...models.api_key import APIKey, APIKeyAuditLog, APIKeyUsage, ServiceType, APIKeyStatus
-from ...models.user import User
-from ...models.service_connection import ServiceConnection
+
+
 from .api_key_manager import APIKeyManager, APIKeyConfig, OAuthConfig
 
 class DatabaseAPIKeyManager(APIKeyManager):

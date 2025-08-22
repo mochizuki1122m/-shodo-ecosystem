@@ -4,15 +4,15 @@ APIキー関連のバックグラウンドタスク
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Optional
 import logging
 from celery import Task
-from sqlalchemy import select, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
+
 
 from .celery_app import celery_app
 from ..models.base import AsyncSessionLocal
-from ..models.api_key import APIKey, APIKeyStatus, ServiceType
+from ..models.api_key import APIKey, APIKeyStatus
 from ..models.user import UserSession
 from ..models.service_connection import ServiceConnection
 from ..services.auth.api_key_manager_db import DatabaseAPIKeyManager

@@ -875,6 +875,8 @@ MCP システムアラート
         
         try:
             # 実装: vLLMサービスのヘルスチェック
+            import httpx
+            from ...core.config import settings
             async with httpx.AsyncClient() as client:
                 response = await client.get(f"{settings.vllm_url}/health", timeout=10)
                 

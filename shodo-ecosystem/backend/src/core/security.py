@@ -4,15 +4,12 @@ MUST requirements for production deployment
 """
 
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import secrets
 import hashlib
 import json
-from fastapi import HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+
 import structlog
 
 logger = structlog.get_logger()
