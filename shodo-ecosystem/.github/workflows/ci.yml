@@ -475,3 +475,74 @@ jobs:
         run: |
           echo "Recording deployment approval..."
           # Create audit log entry
+
+  openapi-diff:
+    name: OpenAPI Diff Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          cd backend
+          pip install -r requirements.txt prance
+      - name: Generate OpenAPI from app
+        run: |
+          cd backend
+          python - <<'PY'
+          from fastapi import FastAPI
+          from src.main import app
+          from fastapi.openapi.utils import get_openapi
+          import json
+          schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+          with open('openapi.generated.json', 'w') as f:
+              json.dump(schema, f, ensure_ascii=False, indent=2)
+          PY
+      - name: Compare with repository openapi.yaml
+        run: |
+          pip install openapi-spec-validator yq
+          yq -o=json '.' shodo-ecosystem/openapi.yaml > repo.openapi.json || yq -o=json '.' openapi.yaml > repo.openapi.json
+          python - <<'PY'
+          import json, sys
+          with open('backend/openapi.generated.json') as f: gen=json.load(f)
+          with open('repo.openapi.json') as f: repo=json.load(f)
+          # 簡易比較（差分が大きい場合はエラー）
+          def keys(d):
+              return set(d.keys()) if isinstance(d, dict) else set()
+          gpaths=set(gen.get('paths',{}).keys()); rpaths=set(repo.get('paths',{}).keys())
+          missing = gpaths - rpaths
+          extra = rpaths - gpaths
+          if missing or extra:
+              print('OpenAPI paths differ. Missing:', missing, 'Extra:', extra)
+              sys.exit(1)
+          PY
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: --no-banner -v
+        continue-on-error: true
+
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pip-audit
+        uses: pypa/gh-action-pip-audit@v1
+        with:
+          inputs: requirements.txt: backend/requirements.txt
+        continue-on-error: true
+      - name: TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@v3.82.6
+        with:
+          scanArguments: --json --no-update --only-verified --fail
+        continue-on-error: true

@@ -7,9 +7,14 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
+function hasCookie(name: string): boolean {
+  return document.cookie.split(';').some(c => c.trim().startsWith(name + '='));
+}
+
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
   const token = localStorage.getItem('access_token');
+  const hasAccessCookie = hasCookie('access_token');
 
   // 明示的フラグでバイパス（開発時のみに使用）
   const disableAuthGuard = (process.env.REACT_APP_DISABLE_AUTH_GUARD || 'false') === 'true';
@@ -17,7 +22,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  if (!isAuthenticated && !token) {
+  if (!isAuthenticated && !token && !hasAccessCookie) {
     return <Navigate to="/login" replace />;
   }
 

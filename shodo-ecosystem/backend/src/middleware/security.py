@@ -9,6 +9,7 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -108,13 +109,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        connect_src = " ".join(settings.csp_connect_src)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "
             "style-src 'self'; "
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
-            "connect-src 'self' https:; "
+            f"connect-src {connect_src}; "
             "frame-ancestors 'none'; "
             "base-uri 'self'"
         )

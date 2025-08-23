@@ -169,6 +169,10 @@ app.add_middleware(RateLimitMiddleware)
 # セキュリティヘッダー
 app.add_middleware(SecurityHeadersMiddleware)
 
+# CSRFミドルウェア（Cookieベース認証用）
+from .middleware.csrf import CSRFMiddleware
+app.add_middleware(CSRFMiddleware)
+
 # LPRエンフォーサーミドルウェア
 app.add_middleware(LPREnforcerMiddleware)
 

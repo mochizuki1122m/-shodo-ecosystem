@@ -266,11 +266,40 @@ async def login(
         
         logger.info(f"User logged in: {user_id}")
         
-        return BaseResponse(
-            success=True,
-            data=auth_data,
-            message="Login successful"
+        # HttpOnly/SameSite Cookie 設定
+        from fastapi.responses import JSONResponse
+        from ...core.config import settings as _settings
+        import secrets
+        response = JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=BaseResponse(
+                success=True,
+                data=auth_data,
+                message="Login successful"
+            ).model_dump()
         )
+        # アクセストークン（HttpOnly）
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=_settings.is_production(),
+            samesite=_settings.csrf_cookie_samesite,
+            max_age=expires_in,
+            path="/"
+        )
+        # CSRFトークン（非HttpOnly）
+        csrf_token = secrets.token_urlsafe(32)
+        response.set_cookie(
+            key=_settings.csrf_cookie_name,
+            value=csrf_token,
+            httponly=False,
+            secure=_settings.is_production() and _settings.csrf_cookie_secure,
+            samesite=_settings.csrf_cookie_samesite,
+            max_age=expires_in,
+            path="/"
+        )
+        return response
         
     except Exception as e:
         logger.error(f"Login error: {e}")
@@ -294,11 +323,20 @@ async def logout(
         
         logger.info(f"User logged out: {current_user.user_id}")
         
-        return BaseResponse(
-            success=True,
-            data={"user_id": current_user.user_id},
-            message="Logout successful"
+        from fastapi.responses import JSONResponse
+        from ...core.config import settings as _settings
+        response = JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=BaseResponse(
+                success=True,
+                data={"user_id": current_user.user_id},
+                message="Logout successful"
+            ).model_dump()
         )
+        # クッキー削除
+        response.delete_cookie("access_token", path="/")
+        response.delete_cookie(_settings.csrf_cookie_name, path="/")
+        return response
         
     except Exception as e:
         logger.error(f"Logout error: {e}")

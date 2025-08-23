@@ -18,9 +18,22 @@ const fastify = Fastify({
   },
 });
 
-// CORS設定
+// CORS設定（環境変数駆動）
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 await fastify.register(cors, {
-  origin: true,
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true); // SSR/同一オリジン
+    if (NODE_ENV === 'production') {
+      if (ALLOWED_ORIGINS.length > 0 && ALLOWED_ORIGINS.includes(origin)) {
+        return cb(null, true);
+      }
+      return cb(new Error('Not allowed by CORS'), false);
+    }
+    // 開発は緩め
+    cb(null, true);
+  },
+  credentials: true,
 });
 
 // 推論エンジンの選択

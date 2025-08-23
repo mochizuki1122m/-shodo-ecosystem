@@ -3,9 +3,10 @@
 全ての設定をこのファイルに集約
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseSettings, Field, SecretStr
 from functools import lru_cache
+import json
 
 class Settings(BaseSettings):
     """アプリケーション設定"""
@@ -79,10 +80,32 @@ class Settings(BaseSettings):
         env="TRUSTED_HOSTS"
     )
     
-    # レート制限設定
+    # レート制限設定（統一）
     rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
     rate_limit_per_hour: int = Field(default=1000, env="RATE_LIMIT_PER_HOUR")
+    rate_limit_burst: int = Field(default=10, env="RATE_LIMIT_BURST")
+    rate_limit_endpoint_limits: Dict[str, Dict[str, int]] = Field(
+        default={
+            "/api/v1/auth/login": {"per_minute": 5, "per_hour": 20, "burst": 2},
+            "/api/v1/auth/register": {"per_minute": 3, "per_hour": 10, "burst": 1},
+            "/api/v1/lpr/issue": {"per_minute": 10, "per_hour": 100, "burst": 3},
+            "/api/v1/nlp/analyze": {"per_minute": 30, "per_hour": 500, "burst": 5},
+            "/api/v1/preview/generate": {"per_minute": 20, "per_hour": 300, "burst": 3},
+            "/health": {"per_minute": 9999, "per_hour": 99999, "burst": 999},
+            "/metrics": {"per_minute": 9999, "per_hour": 99999, "burst": 999},
+        },
+        env="RATE_LIMIT_ENDPOINT_LIMITS"
+    )
+    rate_limit_fail_open: bool = Field(default=False, env="RATE_LIMIT_FAIL_OPEN")
+    rate_limit_degraded_mode_headers: bool = Field(default=True, env="RATE_LIMIT_DEGRADED_MODE_HEADERS")
+    
+    # CSRF 設定（Cookieベース認証用）
+    csrf_enabled: bool = Field(default=True, env="CSRF_ENABLED")
+    csrf_cookie_name: str = Field(default="csrf_token", env="CSRF_COOKIE_NAME")
+    csrf_header_name: str = Field(default="X-CSRF-Token", env="CSRF_HEADER_NAME")
+    csrf_cookie_secure: bool = Field(default=True, env="CSRF_COOKIE_SECURE")
+    csrf_cookie_samesite: str = Field(default="Lax", env="CSRF_COOKIE_SAMESITE")
     
     # SLO 設定
     slo_availability_target: float = Field(default=99.9, env="SLO_AVAILABILITY_TARGET")
@@ -112,6 +135,9 @@ class Settings(BaseSettings):
     # キャッシュ設定
     cache_ttl_seconds: int = Field(default=300, env="CACHE_TTL_SECONDS")
     cache_enabled: bool = Field(default=True, env="CACHE_ENABLED")
+    
+    # CSP 設定（connect-src を環境変数で調整可能に）
+    csp_connect_src: List[str] = Field(default=["'self'", "https:"], env="CSP_CONNECT_SRC")
     
     # 外部サービス設定
     shopify_api_key: Optional[str] = Field(default=None, env="SHOPIFY_API_KEY")
@@ -154,8 +180,13 @@ class Settings(BaseSettings):
         # 環境変数のリスト形式対応
         @classmethod
         def parse_env_var(cls, field_name: str, raw_val: str):
-            if field_name in ("cors_origins", "trusted_hosts"):
+            if field_name in ("cors_origins", "trusted_hosts", "csp_connect_src"):
                 return [x.strip() for x in raw_val.split(",")]
+            if field_name in ("rate_limit_endpoint_limits",):
+                try:
+                    return json.loads(raw_val)
+                except Exception:
+                    return {}
             return raw_val
 
 @lru_cache()

@@ -60,17 +60,6 @@ class SecurityHeaders:
         )
     }
 
-class RateLimitConfig:
-    """Rate limiting configuration"""
-    DEFAULT_LIMIT = 100  # requests per minute
-    BURST_LIMIT = 150    # burst allowance
-    
-    ENDPOINT_LIMITS = {
-        "/api/v1/auth/login": 5,
-        "/api/v1/auth/register": 3,
-        "/api/v1/lpr/issue": 10,
-        "/api/v1/nlp/analyze": 30,
-    }
 
 class InputSanitizer:
     """Input sanitization and validation"""
@@ -249,12 +238,11 @@ class SessionManager:
 
 # Export security utilities
 __all__ = [
-    'pwd_context',
-    'JWTConfig',
-    'SecurityHeaders',
-    'RateLimitConfig',
-    'InputSanitizer',
-    'PIIMasking',
-    'SecureTokenGenerator',
-    'SessionManager'
+	'pwd_context',
+	'JWTConfig',
+	'SecurityHeaders',
+	'InputSanitizer',
+	'PIIMasking',
+	'SecureTokenGenerator',
+	'SessionManager'
 ]

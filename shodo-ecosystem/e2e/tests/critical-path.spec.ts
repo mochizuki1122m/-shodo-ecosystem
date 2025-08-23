@@ -26,11 +26,11 @@ test.describe('Critical User Journey', () => {
     // Wait for redirect
     await page.waitForURL('/dashboard');
     
-    // Verify authentication
-    const token = await page.evaluate(() => {
-      return localStorage.getItem('access_token');
-    });
-    expect(token).toBeTruthy();
+    // Verify authentication via cookie
+    const cookies = await page.context().cookies();
+    const accessCookie = cookies.find(c => c.name === 'access_token');
+    expect(accessCookie).toBeTruthy();
+    expect(accessCookie?.httpOnly).toBeTruthy();
     
     // Verify user info is displayed
     await expect(page.locator('[data-testid="user-menu"]')).toBeVisible();

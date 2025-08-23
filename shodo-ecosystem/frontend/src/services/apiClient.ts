@@ -28,6 +28,11 @@ export interface ErrorResponse {
   error_code?: string;
 }
 
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private refreshingToken: Promise<string> | null = null;
@@ -41,6 +46,7 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      withCredentials: true,
     });
 
     this.setupInterceptors();
@@ -50,9 +56,15 @@ class ApiClient {
     // リクエストインターセプター
     this.client.interceptors.request.use(
       (config) => {
+        // CookieベースのためAuthorizationヘッダは任意（下位互換で残す）
         const token = localStorage.getItem('access_token');
         if (token) {
           (config.headers as any).Authorization = `Bearer ${token}`;
+        }
+        // CSRFヘッダ付与
+        const csrf = getCookie('csrf_token');
+        if (csrf) {
+          (config.headers as any)['X-CSRF-Token'] = csrf;
         }
         // リクエストIDの追加
         (config.headers as any)['X-Request-ID'] = this.generateRequestId();
@@ -114,21 +126,18 @@ class ApiClient {
 
     this.refreshingToken = new Promise(async (resolve, reject) => {
       try {
+        // Cookieベースのためbody不要でも可。互換のため残す
         const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-        const response = await this.client.post('/auth/refresh', {
-          refresh_token: refreshToken,
-        });
+        const response = await this.client.post('/auth/refresh', refreshToken ? { refresh_token: refreshToken } : {});
         const newToken: string | undefined = (response.data?.data?.access_token) || response.data?.access_token;
         const newRefresh: string | undefined = (response.data?.data?.refresh_token) || response.data?.refresh_token;
-        if (!newToken) throw new Error('No access token in refresh response');
-        localStorage.setItem('access_token', newToken);
+        if (newToken) {
+          localStorage.setItem('access_token', newToken);
+        }
         if (newRefresh) {
           localStorage.setItem('refresh_token', newRefresh);
         }
-        resolve(newToken);
+        resolve(newToken || '');
       } catch (err) {
         reject(err);
       } finally {
