@@ -306,6 +306,9 @@ class DataEncryption:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
 def generate_api_key() -> str:
     return SecureTokenGenerator.generate_api_key()
 
@@ -324,6 +327,7 @@ __all__ = [
 	'JWTManager',
 	'DataEncryption',
 	'get_password_hash',
+	'verify_password',
 	'generate_api_key',
 	'verify_api_key'
 ]
