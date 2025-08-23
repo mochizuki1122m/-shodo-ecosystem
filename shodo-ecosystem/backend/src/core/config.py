@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     cors_allow_methods: List[str] = Field(default=["*"], env="CORS_ALLOW_METHODS")
     cors_allow_headers: List[str] = Field(default=["*"], env="CORS_ALLOW_HEADERS")
     
+    # Trusted hosts
+    trusted_hosts: List[str] = Field(
+        default=["localhost", "127.0.0.1", "shodo.local", "*.shodo.local"],
+        env="TRUSTED_HOSTS"
+    )
+    
     # レート制限設定
     rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
@@ -143,7 +149,7 @@ class Settings(BaseSettings):
         # 環境変数のリスト形式対応
         @classmethod
         def parse_env_var(cls, field_name: str, raw_val: str):
-            if field_name == "cors_origins":
+            if field_name in ("cors_origins", "trusted_hosts"):
                 return [x.strip() for x in raw_val.split(",")]
             return raw_val
 

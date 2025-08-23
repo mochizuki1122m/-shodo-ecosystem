@@ -20,6 +20,9 @@ logger = structlog.get_logger()
 
 router = APIRouter(tags=["Health"])
 
+# 再利用するHTTPクライアント（接続プール/Keep-Alive）
+_httpx_client = httpx.AsyncClient(timeout=5.0)
+
 class HealthStatus(Enum):
     """Health status levels"""
     HEALTHY = "healthy"
@@ -191,25 +194,24 @@ class HealthChecker:
     async def _check_ai_server(self) -> ComponentHealth:
         """Check AI server health"""
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{settings.vllm_url}/health")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    return ComponentHealth(
-                        name="ai_server",
-                        status=HealthStatus.HEALTHY,
-                        metadata={
-                            "engine": settings.inference_engine,
-                            "model": data.get("model", "unknown")
-                        }
-                    )
-                else:
-                    return ComponentHealth(
-                        name="ai_server",
-                        status=HealthStatus.DEGRADED,
-                        message=f"AI server returned {response.status_code}"
-                    )
+            response = await _httpx_client.get(f"{settings.vllm_url}/health")
+            
+            if response.status_code == 200:
+                data = response.json()
+                return ComponentHealth(
+                    name="ai_server",
+                    status=HealthStatus.HEALTHY,
+                    metadata={
+                        "engine": settings.inference_engine,
+                        "model": data.get("model", "unknown")
+                    }
+                )
+            else:
+                return ComponentHealth(
+                    name="ai_server",
+                    status=HealthStatus.DEGRADED,
+                    message=f"AI server returned {response.status_code}"
+                )
         except Exception as e:
             return ComponentHealth(
                 name="ai_server",
