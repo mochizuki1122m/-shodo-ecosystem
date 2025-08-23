@@ -6,7 +6,7 @@ JWT検証とユーザー認証の中央管理
 from typing import Optional
 from datetime import datetime, timezone
 from jose import jwt, JWTError
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import logging
@@ -17,7 +17,7 @@ from ..services.database import get_db_session
 logger = logging.getLogger(__name__)
 
 # Bearer token security scheme
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 class TokenClaims(BaseModel):
     """標準化されたJWTクレーム構造"""
@@ -98,6 +98,7 @@ async def verify_jwt_token(token: str) -> Optional[TokenClaims]:
         return None
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db = Depends(get_db_session)
 ) -> CurrentUser:
@@ -105,7 +106,19 @@ async def get_current_user(
     現在の認証済みユーザーを取得
     全APIエンドポイントで共通使用されるSSOT実装
     """
-    token = credentials.credentials
+    token = None
+    if credentials and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    else:
+        # Cookieベースのトークンを参照
+        token = request.cookies.get("access_token")
+    
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials were not provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
     # トークン検証
     claims = await verify_jwt_token(token)

@@ -60,6 +60,8 @@ services:
       - MODEL_NAME=${MODEL_NAME:-mistral}
       - MAX_WORKERS=${MAX_WORKERS:-4}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      - NODE_ENV=production
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
     volumes:
       - ./ai-server/models:/models
       - ./ai-server/logs:/logs
@@ -94,12 +96,18 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
       - OPENAI_BASE_URL=http://ai-server:8001/v1
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=production
       - SENTRY_DSN=${SENTRY_DSN}
+      - CSRF_ENABLED=true
+      - CSRF_COOKIE_NAME=${CSRF_COOKIE_NAME:-csrf_token}
+      - CSRF_HEADER_NAME=${CSRF_HEADER_NAME:-X-CSRF-Token}
+      - CSRF_COOKIE_SECURE=true
+      - CSRF_COOKIE_SAMESITE=${CSRF_COOKIE_SAMESITE:-Lax}
+    # NOTE: 本番では JWT_SECRET_KEY/ENCRYPTION_KEY が未設定の場合、設定バリデーションで起動ブロック
     volumes:
       - ./backend/logs:/app/logs
       - ./backend/uploads:/app/uploads
