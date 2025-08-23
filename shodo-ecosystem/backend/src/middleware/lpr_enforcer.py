@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import structlog
 
-from ..services.auth.lpr_service import (
+from ..services.auth.lpr import (
     LPRService, LPRScope, DeviceFingerprint, get_lpr_service
 )
 from ..core.config import settings
@@ -99,7 +99,7 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         
         # Initialize LPR service if needed
         if self.lpr_service is None:
-            self.lpr_service = await get_lpr_service()
+            self.lpr_service = get_lpr_service()
         
         # Extract LPR token
         lpr_token = self._extract_lpr_token(request)
@@ -121,39 +121,35 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         # Extract device fingerprint
         device_fingerprint = self._extract_device_fingerprint(request)
         
-        # Create required scope
-        required_scope = LPRScope(
-            method=request.method,
-            url_pattern=request.url.path
+        # Verify token (new signature)
+        is_valid, verified_token, error = await self.lpr_service.verify_token(
+            token_str=lpr_token,
+            request_method=request.method,
+            request_url=str(request.url),
+            request_origin=request.headers.get("origin", ""),
+            device_fingerprint=device_fingerprint,
         )
         
-        # Verify token
-        verification = await self.lpr_service.verify_token(
-            lpr_token,
-            device_fingerprint,
-            required_scope
-        )
-        
-        if not verification.get("valid"):
+        if not is_valid or verified_token is None:
             logger.warning(
                 "LPR token verification failed",
                 path=request.url.path,
-                error=verification.get("error"),
+                error=error,
                 correlation_id=correlation_id
             )
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={
                     "error": "LPR_VERIFICATION_FAILED",
-                    "message": verification.get("error", "Token verification failed"),
+                    "message": error or "Token verification failed",
                     "correlation_id": correlation_id
                 }
             )
         
         # Extract token info
-        jti = verification.get("jti")
-        user_id = verification.get("user_id")
-        service = verification.get("service")
+        jti = verified_token.jti
+        user_id = verified_token.subject_pseudonym
+        service = "lpr"
         
         # Check rate limits
         if not await self._check_rate_limit(jti, request):
@@ -243,7 +239,7 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         )
         
         return response
-    
+
     def _is_exempt_path(self, path: str) -> bool:
         """Check if path is exempt from LPR"""
         for exempt in self.EXEMPT_PATHS:
@@ -283,7 +279,7 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
             accept_language=request.headers.get("Accept-Language", ""),
             screen_resolution=request.headers.get("X-Screen-Resolution"),
             timezone=request.headers.get("X-Timezone"),
-            canvas_hash=request.headers.get("X-Canvas-Hash")
+            canvas_fp=request.headers.get("X-Canvas-Hash")
         )
     
     async def _check_rate_limit(self, jti: str, request: Request) -> bool:
@@ -317,51 +313,28 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         if len(recent_requests) >= 10:
             return False
         
-        # Add current request
+        # Record this request
         limits["requests"].append(now)
-        
         return True
-    
+
     async def _should_add_jitter(self, jti: str) -> bool:
-        """Determine if human speed jitter should be added"""
-        # Add jitter to 30% of requests in production
-        if settings.is_production():
-            return random.random() < 0.3
-        return False
-    
+        """Determine if jitter should be added to simulate human speed"""
+        return settings.rate_limit_enabled
+
     async def _async_sleep(self, seconds: float):
-        """Async sleep for jitter"""
         import asyncio
         await asyncio.sleep(seconds)
-    
+
     async def _mask_response(self, response: Response) -> Response:
-        """Mask sensitive data in response"""
-        # Only mask JSON responses
-        if "application/json" not in response.headers.get("content-type", ""):
-            return response
-        
-        # Read response body
-        body = b""
-        async for chunk in response.body_iterator:
-            body += chunk
-        
+        """Mask sensitive data in response body"""
         try:
-            # Parse JSON
-            data = json.loads(body)
-            
-            # Mask PII
-            masked_data = PIIMasking.mask_dict(data)
-            
-            # Create new response with masked data
-            return JSONResponse(
-                content=masked_data,
-                status_code=response.status_code,
-                headers=dict(response.headers)
-            )
-        except:
-            # If parsing fails, return original
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            data = json.loads(body.decode())
+            masked = PIIMasking.mask_dict(data)
+            return JSONResponse(content=masked, status_code=response.status_code, headers=dict(response.headers))
+        except Exception:
             return response
-    
+
     async def _audit_log(
         self,
         jti: str,
@@ -371,26 +344,17 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         path: str,
         status_code: int,
         operation_time: float,
-        correlation_id: str
+        correlation_id: str,
     ):
-        """Create audit log entry"""
-        
-        audit_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "event_type": "lpr_operation",
-            "jti": jti,
-            "user_id": user_id,
-            "service": service,
-            "method": method,
-            "path": path,
-            "status_code": status_code,
-            "operation_time_ms": operation_time * 1000,
-            "correlation_id": correlation_id,
-            "success": 200 <= status_code < 400
-        }
-        
-        # Log to structured logger
-        logger.info("LPR audit", **audit_entry)
-        
-        # Store in audit database/SIEM
-        # await store_audit_log(audit_entry)
+        # Placeholder for real audit logging
+        logger.info(
+            "LPR operation audit",
+            jti=jti,
+            user_id=user_id,
+            service=service,
+            method=method,
+            path=path,
+            status_code=status_code,
+            operation_time_ms=int(operation_time * 1000),
+            correlation_id=correlation_id,
+        )
