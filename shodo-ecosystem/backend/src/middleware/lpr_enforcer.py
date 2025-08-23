@@ -23,6 +23,24 @@ from ..utils.correlation import set_correlation_id
 
 logger = structlog.get_logger()
 
+class LPRRateLimiter:
+    """シンプルなトークン別レートリミッター（インメモリ）"""
+    def __init__(self):
+        self._store: dict[str, list[float]] = {}
+
+    async def check_and_update(self, key: str, limit: float, window: float) -> bool:
+        now = time.time()
+        bucket = self._store.setdefault(key, [])
+        # 古いイベントをウィンドウ外として削除
+        self._store[key] = [t for t in bucket if now - t < window]
+        bucket = self._store[key]
+        # 許容量判定（RPS=limit → window内の最大回数=limit*window）
+        max_events = int(limit * window)
+        if len(bucket) >= max_events:
+            return False
+        bucket.append(now)
+        return True
+
 class LPREnforcerMiddleware(BaseHTTPMiddleware):
     """
     Middleware to enforce LPR policies
