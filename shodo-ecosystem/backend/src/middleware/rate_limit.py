@@ -19,47 +19,28 @@ from ..services.database import get_redis
 logger = logging.getLogger(__name__)
 
 class RateLimitConfig:
-    """エンドポイント別レート制限設定"""
-    
-    # デフォルト設定
-    DEFAULT_LIMITS = {
-        "per_minute": 60,
-        "per_hour": 1000,
-        "burst": 10
-    }
-    
-    # エンドポイント別カスタム設定
-    ENDPOINT_LIMITS = {
-        # 認証エンドポイントは厳しく制限
-        "/api/v1/auth/login": {"per_minute": 5, "per_hour": 20, "burst": 2},
-        "/api/v1/auth/register": {"per_minute": 3, "per_hour": 10, "burst": 1},
-        
-        # LPR発行も制限
-        "/api/v1/lpr/issue": {"per_minute": 10, "per_hour": 100, "burst": 3},
-        
-        # AI関連は処理が重いので制限
-        "/api/v1/nlp/analyze": {"per_minute": 30, "per_hour": 500, "burst": 5},
-        "/api/v1/preview/generate": {"per_minute": 20, "per_hour": 300, "burst": 3},
-        
-        # ヘルスチェックは制限なし
-        "/health": {"per_minute": 9999, "per_hour": 99999, "burst": 999},
-        "/metrics": {"per_minute": 9999, "per_hour": 99999, "burst": 999},
-    }
+    """エンドポイント別レート制限設定（settingsに一元化）"""
     
     @classmethod
     def get_limits(cls, path: str) -> Dict[str, int]:
         """パスに対するレート制限設定を取得"""
+        endpoint_limits = settings.rate_limit_endpoint_limits or {}
+        
         # 完全一致を優先
-        if path in cls.ENDPOINT_LIMITS:
-            return cls.ENDPOINT_LIMITS[path]
+        if path in endpoint_limits:
+            return endpoint_limits[path]
         
         # プレフィックスマッチ
-        for endpoint, limits in cls.ENDPOINT_LIMITS.items():
+        for endpoint, limits in endpoint_limits.items():
             if path.startswith(endpoint.rstrip("/")):
                 return limits
         
         # デフォルト
-        return cls.DEFAULT_LIMITS
+        return {
+            "per_minute": settings.rate_limit_per_minute,
+            "per_hour": settings.rate_limit_per_hour,
+            "burst": settings.rate_limit_burst,
+        }
 
 class RateLimiter:
     """レート制限実装クラス"""
@@ -75,7 +56,7 @@ class RateLimiter:
             "minute_reset": time.time(),
             "hour_count": 0,
             "hour_reset": time.time(),
-            "burst_tokens": 10,
+            "burst_tokens": settings.rate_limit_burst,
             "burst_reset": time.time()
         })
         
@@ -124,9 +105,9 @@ class RateLimiter:
             except Exception as e:
                 logger.warning(f"Redis not available for rate limiting: {e}")
                 self._redis_checked = True
-                # 本番環境ではフォールバック無効
+                # 本番環境ではフォールバック可否は設定で決定
                 from ..core.config import settings as _settings2
-                if _settings2.is_production():
+                if _settings2.is_production() and not settings.rate_limit_fail_open:
                     self.use_redis = True  # 強制
                     return False
                 self.use_redis = False
@@ -156,10 +137,10 @@ class RateLimiter:
     ) -> Tuple[bool, Dict[str, int]]:
         """Redis使用時のレート制限チェック"""
         if not await self._ensure_redis_connection():
-            # 本番環境ではRedis未接続時は拒否
+            # 本番環境での挙動：Fail-Openが有効ならメモリにフォールバック
             from ..core.config import settings as _settings
-            if _settings.is_production():
-                logger.error("Rate limit denied: Redis unavailable in production")
+            if _settings.is_production() and not settings.rate_limit_fail_open:
+                logger.error("Rate limit denied: Redis unavailable in production and fail_open is disabled")
                 return False, {"retry_after": 60}
             logger.debug("Falling back to memory-based rate limiting")
             return await self._check_memory_limit(client_id, path, limits)
@@ -205,6 +186,14 @@ class RateLimiter:
                     else:
                         self.redis.setex(burst_key, 60, burst_tokens)
                         self.redis.setex(f"{burst_key}:time", 60, now)
+            else:
+                # 初期化
+                if asyncio.iscoroutinefunction(self.redis.setex):
+                    await self.redis.setex(burst_key, 60, burst_tokens)
+                    await self.redis.setex(f"{burst_key}:time", 60, now)
+                else:
+                    self.redis.setex(burst_key, 60, burst_tokens)
+                    self.redis.setex(f"{burst_key}:time", 60, now)
             
             # 制限チェック
             if minute_count > limits["per_minute"]:
@@ -359,6 +348,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             response.headers["X-RateLimit-Burst-Remaining"] = str(
                 rate_info.get("burst_remaining", 0)
             )
+            
+            # Degradedモードのヒント
+            if settings.rate_limit_fail_open and settings.rate_limit_degraded_mode_headers:
+                response.headers["X-RateLimit-Mode"] = "degraded"
         
         return response
 
