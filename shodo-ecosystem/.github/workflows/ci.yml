@@ -1,16 +1,56 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main]
+    branches: [ main, develop ]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff autoflake pyflakes mypy bandit
+
+      - name: Ruff Lint
+        run: |
+          ruff check src --select F,E,B,I,W,BLE,S --fix --unsafe-fixes
+
+      - name: Pyflakes
+        run: |
+          python -m pyflakes src
+
+      - name: Bandit Security Scan
+        run: |
+          bandit -r src -q || true
+
+      - name: Type Check (mypy)
+        run: |
+          mypy --config-file mypy.ini src || true
+
+      - name: Run tests
+        run: |
+          pytest -q
+
   # ===== Code Quality =====
   lint:
     name: Lint & Format Check
