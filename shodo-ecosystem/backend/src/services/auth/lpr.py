@@ -146,3 +146,6 @@ class LPRService:
         if pattern.endswith("*"):
             return url.startswith(pattern[:-1])
         return pattern == url
+
+def get_lpr_service() -> LPRService:
+    return LPRService()
