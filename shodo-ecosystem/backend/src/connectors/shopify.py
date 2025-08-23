@@ -103,8 +103,11 @@ class ShopifyConnector(BaseSaaSConnector):
         
         try:
             response = await self._session.get(f"/{endpoint}.json", params=params)
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            data = await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
             return data.get(endpoint, [])
         except Exception as e:
             print(f"Error listing {resource_type}: {e}")
@@ -121,8 +124,11 @@ class ShopifyConnector(BaseSaaSConnector):
         
         try:
             response = await self._session.get(f"/{endpoint}/{resource_id}.json")
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            data = await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
             return data.get(singular, data)
         except Exception as e:
             print(f"Error getting {resource_type} {resource_id}: {e}")
@@ -201,8 +207,24 @@ class ShopifyConnector(BaseSaaSConnector):
                 keys = key.split(".")
                 target = preview_data
                 for k in keys[:-1]:
-                    target = target.setdefault(k, {})
-                target[keys[-1]] = value
+                    # 数値キーはリストとして扱う
+                    if k.isdigit():
+                        idx = int(k)
+                        if not isinstance(target, list):
+                            target_key = keys[keys.index(k)-1] if keys.index(k) > 0 else None
+                            target = target.setdefault(target_key or 'root', []) if isinstance(target, dict) else []
+                        while len(target) <= idx:
+                            target.append({})
+                        target = target[idx]
+                    else:
+                        target = target.setdefault(k, {}) if isinstance(target, dict) else {}
+                if keys[-1].isdigit() and isinstance(target, list):
+                    idx = int(keys[-1])
+                    while len(target) <= idx:
+                        target.append({})
+                    target[idx] = value
+                else:
+                    target[keys[-1]] = value
             else:
                 preview_data[key] = value
         

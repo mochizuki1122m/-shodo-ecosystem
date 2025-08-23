@@ -116,6 +116,8 @@ class LPRService:
                 audience=getattr(settings, 'jwt_audience', 'shodo-ecosystem'),
                 issuer=getattr(settings, 'jwt_issuer', 'shodo-auth'),
             )
+        except jwt.ExpiredSignatureError:
+            return False, None, "expired"
         except JWTError as e:
             # 改竄などは例外を送出（テスト期待）
             raise

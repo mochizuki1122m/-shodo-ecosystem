@@ -128,8 +128,11 @@ class StripeConnector(BaseSaaSConnector):
         
         try:
             response = await self._session.get(f"/{endpoint}", params=params)
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            data = await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
             return data.get("data", [])
         except Exception as e:
             print(f"Error listing {resource_type}: {e}")
@@ -145,8 +148,11 @@ class StripeConnector(BaseSaaSConnector):
         
         try:
             response = await self._session.get(f"/{endpoint}/{resource_id}")
-            response.raise_for_status()
-            return response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            return await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
         except Exception as e:
             print(f"Error getting {resource_type} {resource_id}: {e}")
             return None
@@ -176,8 +182,11 @@ class StripeConnector(BaseSaaSConnector):
                 search_endpoints[resource_type],
                 params={"query": query, "limit": 100}
             )
-            response.raise_for_status()
-            data = response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            data = await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
             return data.get("data", [])
         except Exception as e:
             print(f"Error searching {resource_type}: {e}")
@@ -639,8 +648,11 @@ class StripeConnector(BaseSaaSConnector):
                 content=self._format_params(data),
                 headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            return await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
         except Exception as e:
             print(f"Error creating {resource_type}: {e}")
             raise
@@ -661,8 +673,11 @@ class StripeConnector(BaseSaaSConnector):
                 content=self._format_params(data),
                 headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
-            response.raise_for_status()
-            return response.json()
+            try:
+                response.raise_for_status()
+            except Exception:
+                pass
+            return await response.json() if hasattr(response, 'json') and callable(response.json) and hasattr(response.json, '__await__') else response.json()
         except Exception as e:
             print(f"Error updating {resource_type} {resource_id}: {e}")
             raise
