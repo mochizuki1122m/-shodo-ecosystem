@@ -43,6 +43,13 @@ jobs:
         run: |
           bandit -r src -q || true
 
+      - name: Semgrep Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: .semgrep.yml
+          generateSarif: true
+        continue-on-error: true
+
       - name: Type Check (mypy)
         run: |
           mypy --config-file mypy.ini src || true

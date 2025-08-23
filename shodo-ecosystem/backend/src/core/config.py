@@ -84,6 +84,11 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
     rate_limit_per_hour: int = Field(default=1000, env="RATE_LIMIT_PER_HOUR")
     
+    # SLO 設定
+    slo_availability_target: float = Field(default=99.9, env="SLO_AVAILABILITY_TARGET")
+    slo_latency_p95_ms: int = Field(default=300, env="SLO_LATENCY_P95_MS")
+    slo_error_rate_percent: float = Field(default=1.0, env="SLO_ERROR_RATE_PERCENT")
+    
     # ログ設定
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     log_format: str = Field(

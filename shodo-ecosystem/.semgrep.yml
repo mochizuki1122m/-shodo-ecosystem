@@ -1,0 +1,28 @@
+rules:
+  - id: python-detect-eval
+    patterns:
+      - pattern: eval(...)
+    message: "Avoid eval(); use safer alternatives."
+    severity: ERROR
+    languages: [python]
+
+  - id: python-os-system-shell
+    patterns:
+      - pattern: os.system($CMD)
+    message: "Avoid os.system(); use subprocess with shell=False."
+    severity: WARNING
+    languages: [python]
+
+  - id: requests-verify-disabled
+    patterns:
+      - pattern: requests.$FUNC(..., verify=False, ...)
+    message: "TLS verification disabled. Avoid verify=False."
+    severity: WARNING
+    languages: [python]
+
+  - id: httpx-verify-disabled
+    patterns:
+      - pattern: httpx.$FUNC(..., verify=False, ...)
+    message: "TLS verification disabled. Avoid verify=False."
+    severity: WARNING
+    languages: [python]
