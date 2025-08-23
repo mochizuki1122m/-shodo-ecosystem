@@ -1,85 +1,99 @@
 """
-pytest設定とフィクスチャ
+pytest設定とフィクスチャ（軽量・自己完結）
 """
 
-import os
+import asyncio
+import pytest
+import pytest_asyncio
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
+from unittest.mock import AsyncMock
 
-# 軽量テストモード（DBや外部依存を読み込まない）
-if os.getenv("LIGHT_TESTS") == "1":
-    # 軽量モードでは重い依存関係を読み込まずにスキップ
-    # 必要な軽量フィクスチャをここに定義可能
-    pass
-else:
-    import pytest
-    import asyncio
-    from typing import AsyncGenerator
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
-    from fastapi.testclient import TestClient
+# FastAPI アプリ
+from src.main_unified import app
+from src.middleware.auth import get_current_user, CurrentUser
+from src.models.models import Base
+from src.services.auth.lpr import LPRService
+from src.services.audit.audit_logger import AuditLogger
 
-    # テスト用環境変数設定
-    os.environ["DATABASE_URL"] = "postgresql+asyncpg://test:test@localhost:5432/test_shodo"
-    os.environ["REDIS_URL"] = "redis://localhost:6379/1"
-    os.environ["SECRET_KEY"] = "test-secret-key"
-    os.environ["DEBUG"] = "true"
+# SQLite(メモリ) の非永続テストDB
+DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+engine = create_async_engine(DATABASE_URL, echo=False, future=True)
+TestSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-    from src.main_unified import app
-    from src.models.models import Base
-    from src.services.database import get_db
-    from sqlalchemy import text
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
-    # テスト用データベースエンジン
-    test_engine = create_async_engine(
-        os.environ["DATABASE_URL"],
-        echo=False,
-    )
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with TestSessionLocal() as session:
+        yield session
+        await session.rollback()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
-    TestSessionLocal = sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
+@pytest.fixture(scope="function")
+def client(db_session):
+    # DB依存のオーバーライド
+    async def override_get_db():
+        yield db_session
 
-    @pytest.fixture(scope="session")
-    def event_loop():
-        """イベントループフィクスチャ"""
-        loop = asyncio.get_event_loop_policy().new_event_loop()
-        yield loop
-        loop.close()
+    async def override_current_user():
+        return CurrentUser(
+            user_id="test-user-id",
+            username="testuser",
+            email="test@example.com",
+            roles=["user"],
+            is_active=True,
+        )
 
-    @pytest.fixture(scope="function")
-    async def db_session() -> AsyncGenerator[AsyncSession, None]:
-        """データベースセッションフィクスチャ"""
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        
-        async with TestSessionLocal() as session:
-            yield session
-            await session.rollback()
-        
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
+    from src.services.database import get_db as _get_db
+    app.dependency_overrides[_get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_current_user
 
-    @pytest.fixture(scope="function")
-    def client(db_session):
-        """テストクライアントフィクスチャ"""
-        
-        async def override_get_db():
-            yield db_session
-        
-        app.dependency_overrides[get_db] = override_get_db
-        
-        with TestClient(app) as test_client:
-            yield test_client
-        
-        app.dependency_overrides.clear()
+    with TestClient(app) as test_client:
+        yield test_client
 
-    @pytest.fixture
-    def auth_headers():
-        """認証ヘッダーフィクスチャ（簡易化）"""
-        return {"Authorization": f"Bearer test-token"}
+    app.dependency_overrides.clear()
 
-    @pytest.fixture
-    def admin_headers():
-        """管理者認証ヘッダーフィクスチャ（簡易化）"""
-        return {"Authorization": f"Bearer admin-token"}
+@pytest.fixture
+def auth_headers():
+    return {"Authorization": "Bearer test-token"}
+
+# ===== モックデータ =====
+
+@pytest.fixture
+def mock_shopify_product():
+    return {
+        "id": "123",
+        "title": "Test Product",
+        "variants": [{"id": "v1", "price": "1000.00"}],
+    }
+
+@pytest.fixture
+def mock_stripe_customer():
+    return {
+        "id": "cus_test123",
+        "name": "Test Customer",
+        "email": "test@example.com",
+        "metadata": {"source": "web"},
+    }
+
+@pytest_asyncio.fixture
+async def lpr_service():
+    service = LPRService()
+    service.redis_client = AsyncMock()
+    yield service
+
+@pytest_asyncio.fixture
+async def audit_logger():
+    logger = AuditLogger()
+    logger.redis_client = AsyncMock()
+    yield logger

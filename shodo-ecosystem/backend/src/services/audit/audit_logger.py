@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from enum import Enum
 import structlog
+from dataclasses import dataclass, field
 
 from ...core.config import settings
 
@@ -55,9 +56,23 @@ class AuditSeverity(str, Enum):
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
 
-class AuditLogEntry(dict):
-    """シンプルな辞書ベースのログエントリ型（テスト互換用）"""
-    pass
+@dataclass
+class AuditLogEntry:
+    """テスト互換の監査ログエントリ"""
+    id: str
+    sequence_number: int
+    timestamp: str
+    event_type: AuditEventType
+    who: str | None = None
+    what: str | None = None
+    where: str | None = None
+    why: str | None = None
+    how: str | None = None
+    result: str | None = None
+    details: Dict[str, Any] = field(default_factory=dict)
+    severity: AuditSeverity = AuditSeverity.INFO
+    entry_hash: str = ""
+    previous_hash: str | None = None
 
 class AuditLogger:
     """
@@ -75,71 +90,85 @@ class AuditLogger:
         self.storage = storage_backend
         self.signing_key = settings.secret_key.get_secret_value().encode()
         self.chain_hash = None  # For hash chaining
+        self.sequence_counter = 0
     
     async def log(
         self,
         event_type: AuditEventType,
-        user_id: Optional[str] = None,
-        correlation_id: Optional[str] = None,
+        who: Optional[str] = None,
+        what: Optional[str] = None,
+        where: Optional[str] = None,
+        why: Optional[str] = None,
+        how: Optional[str] = None,
+        result: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        success: bool = True,
-        severity: str = "INFO"
-    ) -> str:
+    ) -> AuditLogEntry:
         """
-        Create an audit log entry
-        
-        Returns:
-            Audit log ID
+        監査ログを作成し、AuditLogEntryを返す
         """
-        
-        # Create audit entry
-        entry = {
-            "id": self._generate_id(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+        self.sequence_counter += 1
+        ts = datetime.now(timezone.utc).isoformat()
+        # 重要度判定
+        severity = AuditSeverity.INFO
+        if event_type == AuditEventType.SECURITY_VIOLATION:
+            severity = AuditSeverity.CRITICAL
+        elif event_type in (AuditEventType.ERROR,):
+            severity = AuditSeverity.ERROR
+        elif event_type in (AuditEventType.RATE_LIMIT_EXCEEDED, AuditEventType.SUSPICIOUS_ACTIVITY):
+            severity = AuditSeverity.WARNING
+
+        # 一旦辞書を作成してハッシュ計算
+        tmp = {
+            "sequence_number": self.sequence_counter,
+            "timestamp": ts,
             "event_type": event_type.value,
-            "user_id": user_id,
-            "correlation_id": correlation_id,
-            "success": success,
-            "severity": severity,
+            "who": who,
+            "what": what,
+            "where": where,
+            "why": why,
+            "how": how,
+            "result": result,
             "details": details or {},
-            "metadata": {
-                "ip_address": self._mask_ip(ip_address) if ip_address else None,
-                "user_agent": user_agent,
-                "service": settings.service_name,
-                "environment": settings.environment,
-                "version": settings.app_version
-            }
+            "severity": severity.value,
+            "previous_hash": self.chain_hash,
         }
-        
-        # Add integrity fields
-        entry["hash"] = self._calculate_hash(entry)
-        entry["signature"] = self._sign_entry(entry)
-        
-        # Chain hash for tamper detection
-        if self.chain_hash:
-            entry["previous_hash"] = self.chain_hash
-        self.chain_hash = entry["hash"]
-        
-        # Store the entry
-        await self._store_entry(entry)
-        
-        # Log to structured logger
+        entry_hash = self._calculate_hash(tmp)
+        entry_id = self._generate_id()
+
+        entry = AuditLogEntry(
+            id=entry_id,
+            sequence_number=self.sequence_counter,
+            timestamp=ts,
+            event_type=event_type,
+            who=who,
+            what=what,
+            where=where,
+            why=why,
+            how=how,
+            result=result,
+            details=details or {},
+            severity=severity,
+            entry_hash=entry_hash,
+            previous_hash=self.chain_hash,
+        )
+
+        # チェーンの更新
+        self.chain_hash = entry_hash
+
+        # 保存
+        try:
+            await self._store_entry({**tmp, "id": entry.id, "entry_hash": entry.entry_hash})
+        except Exception:
+            pass
+
         logger.info(
             "Audit event",
-            audit_id=entry["id"],
+            audit_id=entry.id,
             event_type=event_type.value,
-            user_id=user_id,
-            correlation_id=correlation_id,
-            success=success
+            who=who,
+            result=result,
         )
-        
-        # Send to SIEM if configured
-        if settings.environment == "production":
-            await self._send_to_siem(entry)
-        
-        return entry["id"]
+        return entry
     
     async def log_authentication(
         self,

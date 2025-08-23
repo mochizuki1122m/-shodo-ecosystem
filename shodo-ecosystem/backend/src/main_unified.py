@@ -88,7 +88,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # APIルーター登録
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth.router, tags=["auth"])  # ルーター自体が /api/v1/auth を持つ
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(mcp.router, prefix="/api/v1/mcp", tags=["mcp"])
 app.include_router(nlp.router, prefix="/api/v1/nlp", tags=["nlp"])

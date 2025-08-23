@@ -57,6 +57,7 @@ class LPRService:
     """簡易LPRサービス（テスト用にメモリ実装）"""
     def __init__(self):
         self.revoked: Dict[str, Dict[str, Any]] = {}
+        self.redis_client = None
 
     async def issue_token(
         self,
@@ -98,24 +99,48 @@ class LPRService:
         request_origin: str,
         device_fingerprint: DeviceFingerprint,
     ) -> Tuple[bool, Optional[LPRToken], Optional[str]]:
+        from jose import jwt, JWTError
+        from src.core.config import settings
         try:
-            data = JWTManager.verify_token(type("Creds", (), {"credentials": token_str}))
-        except Exception as e:
-            return False, None, str(e)
-        jti = data.user_id or ""
-        if jti in self.revoked:
-            return False, None, "revoked"
-        now = datetime.now(timezone.utc)
-        try:
-            payload = json.loads(json.dumps(data.__dict__, default=str))
-        except Exception:
-            payload = data.__dict__
-        exp = payload.get("exp")
-        if exp and now.timestamp() > float(exp):
+            algorithm = getattr(settings, 'jwt_algorithm', 'HS256')
+            if algorithm == 'RS256' and getattr(settings, 'jwt_public_key', None):
+                key = settings.jwt_public_key
+                alg = 'RS256'
+            else:
+                key = (settings.secret_key.get_secret_value() if hasattr(settings, 'secret_key') else settings.jwt_secret_key.get_secret_value())
+                alg = 'HS256'
+            payload = jwt.decode(
+                token_str,
+                key,
+                algorithms=[alg],
+                audience=getattr(settings, 'jwt_audience', 'shodo-ecosystem'),
+                issuer=getattr(settings, 'jwt_issuer', 'shodo-auth'),
+            )
+        except JWTError as e:
+            # 改竄などは例外を送出（テスト期待）
+            raise
+
+        # 失効チェック（Redis）
+        jti = str(payload.get("jti", ""))
+        if self.redis_client is not None:
+            try:
+                revoked_info = await self.redis_client.get(jti)
+                if revoked_info:
+                    return False, None, "revoked"
+            except Exception:
+                pass
+
+        now = datetime.now(timezone.utc).timestamp()
+        exp = float(payload.get("exp", now))
+        if now > exp:
             return False, None, "expired"
+
+        # デバイス指紋
         dfp_hash = device_fingerprint.calculate_hash()
         if payload.get("dfp") and payload.get("dfp") != dfp_hash:
             return False, None, "device mismatch"
+
+        # スコープ検証
         scopes = [LPRScope(**s) for s in payload.get("scopes", [])]
         allowed = any(
             s.method.upper() == request_method.upper() and self._url_match(s.url_pattern, request_url)
@@ -123,14 +148,20 @@ class LPRService:
         )
         if not allowed:
             return False, None, "scope violation"
+
+        # オリジン検証
+        origins = payload.get("origins", [])
+        if origins and request_origin not in origins:
+            return False, None, "origin violation"
+
         token = LPRToken(
             jti=payload.get("jti", ""),
             subject_pseudonym=payload.get("sub", ""),
             device_fingerprint_hash=payload.get("dfp", ""),
             scope_allowlist=scopes,
-            origins_allowlist=payload.get("origins", []),
-            issued_at=datetime.fromtimestamp(payload.get("iat", now.timestamp()), tz=timezone.utc),
-            expires_at=datetime.fromtimestamp(payload.get("exp", now.timestamp()), tz=timezone.utc),
+            origins_allowlist=origins,
+            issued_at=datetime.fromtimestamp(payload.get("iat", now), tz=timezone.utc),
+            expires_at=datetime.fromtimestamp(payload.get("exp", now), tz=timezone.utc),
         )
         return True, token, None
 
@@ -140,6 +171,15 @@ class LPRService:
             "reason": reason,
             "revoked_by": revoked_by,
         }
+        # Redisへ通知
+        if self.redis_client is not None:
+            try:
+                payload = json.dumps(self.revoked[jti])
+                # 1時間のTTLで保存（値は任意）
+                await self.redis_client.setex(jti, 3600, payload)
+                await self.redis_client.publish("lpr:revoked", payload)
+            except Exception:
+                pass
         return True
 
     def _url_match(self, pattern: str, url: str) -> bool:

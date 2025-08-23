@@ -316,6 +316,12 @@ def get_metrics() -> str:
     """Prometheus メトリクスを取得"""
     return generate_latest(registry)
 
+def get_metrics_json() -> dict:
+    """JSON形式のメトリクス（最小構成）"""
+    return {
+        "registered_metrics": list(registry._names_to_collectors.keys())
+    }
+
 def get_metrics_content_type() -> str:
     """Prometheus メトリクスのContent-Typeを取得"""
     return CONTENT_TYPE_LATEST

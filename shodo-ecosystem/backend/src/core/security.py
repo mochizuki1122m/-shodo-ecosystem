@@ -107,26 +107,25 @@ class InputSanitizer:
     
     @staticmethod
     def sanitize_json(data: dict) -> dict:
-        """Recursively sanitize JSON data"""
+        """Recursively sanitize JSON data, including HTML content in strings"""
         if not isinstance(data, dict):
             return {}
-        
         sanitized = {}
         for key, value in data.items():
             if isinstance(value, str):
-                sanitized[key] = InputSanitizer.sanitize_string(value)
+                # HTML由来の危険要素を除去
+                sanitized[key] = InputSanitizer.sanitize_html(value)
             elif isinstance(value, dict):
                 sanitized[key] = InputSanitizer.sanitize_json(value)
             elif isinstance(value, list):
                 sanitized[key] = [
                     InputSanitizer.sanitize_json(item) if isinstance(item, dict)
-                    else InputSanitizer.sanitize_string(item) if isinstance(item, str)
+                    else InputSanitizer.sanitize_html(item) if isinstance(item, str)
                     else item
                     for item in value
                 ]
             else:
                 sanitized[key] = value
-        
         return sanitized
 
     @staticmethod
@@ -138,9 +137,10 @@ class InputSanitizer:
             import re
             # remove script/style blocks
             html = re.sub(r"<\s*(script|style)[^>]*>.*?<\s*/\s*\1\s*>", "", html, flags=re.IGNORECASE | re.DOTALL)
-            # remove on* attributes and javascript: URIs
-            html = re.sub(r"on[a-zA-Z]+\s*=\s*\".*?\"", "", html)
-            html = re.sub(r"on[a-zA-Z]+\s*=\s*'.*?'", "", html)
+            # remove on* attributes and javascript: URIs (double/single/unquoted)
+            html = re.sub(r"\son[a-zA-Z]+\s*=\s*\".*?\"", "", html, flags=re.IGNORECASE)
+            html = re.sub(r"\son[a-zA-Z]+\s*=\s*\'.*?\'", "", html, flags=re.IGNORECASE)
+            html = re.sub(r"\son[a-zA-Z]+\s*=\s*[^\s>]+", "", html, flags=re.IGNORECASE)
             html = re.sub(r"javascript:\s*", "", html, flags=re.IGNORECASE)
             return html
         except Exception:
@@ -236,12 +236,18 @@ class JWTManager:
         try:
             from jose import jwt
             from src.core.config import settings
-            expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=1))
+            now = datetime.now(timezone.utc)
+            expire = now + (expires_delta or timedelta(hours=1))
             claims = dict(data)
+            # 標準クレームの補完
             if 'exp' not in claims:
-                claims['exp'] = expire
+                claims['exp'] = int(expire.timestamp())
             if 'iat' not in claims:
-                claims['iat'] = datetime.now(timezone.utc)
+                claims['iat'] = int(now.timestamp())
+            if 'sub' not in claims and 'user_id' in claims:
+                claims['sub'] = str(claims['user_id'])
+            claims.setdefault('iss', getattr(settings, 'jwt_issuer', 'shodo-auth'))
+            claims.setdefault('aud', getattr(settings, 'jwt_audience', 'shodo-ecosystem'))
             algorithm = getattr(settings, 'jwt_algorithm', 'HS256')
             if algorithm == 'RS256' and getattr(settings, 'jwt_private_key', None):
                 return jwt.encode(claims, settings.jwt_private_key, algorithm='RS256')
