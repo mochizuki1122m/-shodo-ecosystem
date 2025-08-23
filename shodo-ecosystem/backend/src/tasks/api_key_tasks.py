@@ -10,12 +10,12 @@ from celery import Task
 from sqlalchemy import select, and_
 
 
-from .celery_app import celery_app
-from ..models.base import AsyncSessionLocal
-from ..models.api_key import APIKey, APIKeyStatus
-from ..models.user import UserSession
-from ..models.service_connection import ServiceConnection
-from ..services.auth.api_key_manager_db import DatabaseAPIKeyManager
+from src.tasks.celery_app import celery_app
+from src.models.base import AsyncSessionLocal
+from src.models.api_key import APIKey, APIKeyStatus
+from src.models.user import UserSession
+from src.models.service_connection import ServiceConnection
+from src.services.auth.api_key_manager_db import DatabaseAPIKeyManager
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ def generate_usage_report(self, report_type: str = 'daily', user_id: Optional[st
                 report['data'] = {user_id: stats}
             else:
                 # 全ユーザーのサマリー
-                from ..models.user import User
+                from src.models.user import User
                 
                 result = await db.execute(select(User).where(User.is_active == True))
                 users = result.scalars().all()
