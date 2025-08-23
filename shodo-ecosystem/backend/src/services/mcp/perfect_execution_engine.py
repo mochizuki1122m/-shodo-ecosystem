@@ -4,32 +4,25 @@ Perfect Execution Engine - 完璧な実行エンジン
 """
 
 import asyncio
-import json
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import structlog
-from datetime import datetime, timedelta
-import concurrent.futures
-import threading
-import queue
-import signal
+from datetime import datetime
+
 import psutil
+import httpx
+
+from .perfect_mcp_engine import MCPOperationResult, MCPConnectionStrategy
 
 # Browser automation
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from prometheus_client import Counter, Histogram, Gauge, Summary
 
 # Monitoring and metrics
-import prometheus_client
-from prometheus_client import Counter, Histogram, Gauge, Summary
+
 
 logger = structlog.get_logger()
 

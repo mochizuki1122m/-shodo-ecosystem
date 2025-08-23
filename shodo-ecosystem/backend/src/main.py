@@ -3,14 +3,13 @@ Shodo Ecosystem バックエンドサーバー
 LPRシステム統合版
 """
 
-import os
 import time
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 from datetime import datetime
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -21,13 +20,16 @@ import structlog
 from .core.config import settings
 
 # データベース
-from .services.database import init_db, close_db, check_all_connections
+from .services.database import init_db, check_all_connections
 
 # LPRシステム
 from .services.auth.lpr_service import get_lpr_service
 from .services.auth.visible_login import init_visible_login, cleanup_visible_login
 from .services.audit.audit_logger import init_audit_logger
 from .middleware.lpr_enforcer import LPREnforcerMiddleware
+
+# セキュリティヘッダー
+from .middleware.security import SecurityHeadersMiddleware
 
 # レート制限
 from .middleware.rate_limit import RateLimitMiddleware
@@ -158,16 +160,14 @@ app.add_middleware(
 # 信頼できるホストの制限
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["*"] if settings.debug else [
-        "localhost",
-        "127.0.0.1",
-        "shodo.local",
-        "*.shodo.local",
-    ]
+    allowed_hosts=["*"] if settings.debug else settings.trusted_hosts
 )
 
 # レート制限ミドルウェア（最初に適用）
 app.add_middleware(RateLimitMiddleware)
+
+# セキュリティヘッダー
+app.add_middleware(SecurityHeadersMiddleware)
 
 # LPRエンフォーサーミドルウェア
 app.add_middleware(LPREnforcerMiddleware)
@@ -200,16 +200,16 @@ app.include_router(auth.router)
 # LPR API
 app.include_router(lpr.router)
 
-# ダッシュボードAPI
+# ダッシュボード API
 app.include_router(dashboard.router)
 
-# MCP API（LPR保護）
+# MCP API
 app.include_router(mcp.router)
 
-# NLP API（LPR保護）
+# NLP API
 app.include_router(nlp.router)
 
-# プレビューAPI（LPR保護）
+# プレビュー API
 app.include_router(preview.router)
 
 # ===== ヘルスチェック =====

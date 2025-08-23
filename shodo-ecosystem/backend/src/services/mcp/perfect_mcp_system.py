@@ -4,17 +4,15 @@ Perfect MCP System - 完璧なModel Context Protocolシステム
 """
 
 import asyncio
-import json
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import structlog
-from datetime import datetime, timedelta
+from datetime import datetime
 import signal
-import sys
-from pathlib import Path
+import importlib
 
 # Internal imports
 from .perfect_mcp_engine import (
@@ -27,7 +25,6 @@ from .perfect_execution_engine import PerfectExecutionEngine, MCPOperationResult
 from .perfect_integration_api import PerfectIntegrationAPI, create_perfect_mcp_app
 from .perfect_monitoring_system import PerfectMonitoringSystem
 from .perfect_test_suite import PerfectTestRunner
-from .legal_compliance_engine import LegalComplianceEngine, EthicalAutomationEngine
 from ...core.config import settings
 
 logger = structlog.get_logger()
@@ -176,7 +173,7 @@ class PerfectMCPSystem:
             )
             
             # 接続テスト
-            test_response = await self.llm_client.chat.completions.create(
+            await self.llm_client.chat.completions.create(
                 model="gpt-oss-20b",
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=10
@@ -786,7 +783,6 @@ class PerfectMCPSystem:
     async def _cleanup_monitoring_system(self):
         """監視システムのクリーンアップ"""
         # 実装: 監視タスクの停止、リソースの解放
-        pass
     
     def get_app(self) -> Any:
         """FastAPIアプリケーションの取得"""
@@ -861,7 +857,7 @@ async def demonstrate_perfect_mcp_system():
     
     # システムステータスの表示
     status = await system.get_system_status()
-    print(f"📊 System Status:")
+    print("📊 System Status:")
     print(f"   State: {status['state']}")
     print(f"   Health Score: {status['health']['overall_score']:.2f}")
     print(f"   Uptime: {status['uptime_seconds']:.0f}s")
@@ -874,7 +870,7 @@ async def demonstrate_perfect_mcp_system():
         {"url": "https://trello.com", "name": "trello"}
     ]
     
-    print(f"\n🔗 Testing service connections...")
+    print("\n🔗 Testing service connections...")
     
     for service in test_services:
         print(f"   Connecting to {service['name']}...")
@@ -906,7 +902,7 @@ async def demonstrate_perfect_mcp_system():
     
     # 操作実行のテスト
     if connected_services:
-        print(f"\n🧪 Testing operations...")
+        print("\n🧪 Testing operations...")
         
         for service in connected_services[:2]:  # 最初の2サービスでテスト
             test_operations = ["list_items", "search"]
@@ -922,7 +918,7 @@ async def demonstrate_perfect_mcp_system():
                 print(f"   {status_symbol} {service['name']}.{operation}: {result.execution_time_ms:.0f}ms")
     
     # 包括的テストの実行
-    print(f"\n🧪 Running comprehensive tests...")
+    print("\n🧪 Running comprehensive tests...")
     test_result = await system.run_comprehensive_test()
     
     if test_result["success"]:
@@ -932,7 +928,7 @@ async def demonstrate_perfect_mcp_system():
     
     # 最終ステータス
     final_status = await system.get_system_status()
-    print(f"\n🎯 Perfect MCP System Demonstration Completed")
+    print("\n🎯 Perfect MCP System Demonstration Completed")
     print(f"   Final Health Score: {final_status['health']['overall_score']:.2f}")
     print(f"   Services Connected: {final_status['services']['connected']}")
     print(f"   Operations Executed: {final_status['operations']['total']}")

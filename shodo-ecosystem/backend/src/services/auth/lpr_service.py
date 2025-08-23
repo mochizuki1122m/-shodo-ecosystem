@@ -5,7 +5,6 @@ MUST: Production-ready JWT implementation with full security
 
 import json
 import hashlib
-import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 import uuid
@@ -17,7 +16,7 @@ from cryptography.hazmat.backends import default_backend
 import structlog
 
 from ...core.config import settings
-from ...core.security import SecureTokenGenerator
+
 
 logger = structlog.get_logger()
 

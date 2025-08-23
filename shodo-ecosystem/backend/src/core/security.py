@@ -4,15 +4,12 @@ MUST requirements for production deployment
 """
 
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import secrets
 import hashlib
 import json
-from fastapi import HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+
 import structlog
 
 logger = structlog.get_logger()
@@ -41,11 +38,11 @@ class SecurityHeaders:
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         "Content-Security-Policy": (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "
+            "style-src 'self'; "
             "img-src 'self' data: https:; "
             "font-src 'self' data:; "
-            "connect-src 'self'; "
+            "connect-src 'self' https:; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
             "form-action 'self'"

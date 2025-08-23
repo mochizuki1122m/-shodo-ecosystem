@@ -370,7 +370,6 @@ class AuditLogger:
         """Send to SIEM system"""
         # Implementation for SIEM integration
         # e.g., Splunk, ELK, Datadog
-        pass
 
 # Singleton instance
 audit_logger = None

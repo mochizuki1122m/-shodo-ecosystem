@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, AsyncGenerator
 from datetime import datetime
 from enum import Enum
-import asyncio
 from dataclasses import dataclass
 
 class ConnectorType(str, Enum):
@@ -93,7 +92,6 @@ class BaseSaaSConnector(ABC):
         コネクタの初期化
         認証の確認、接続テストなどを実行
         """
-        pass
     
     @abstractmethod
     async def authenticate(self) -> bool:
@@ -101,7 +99,6 @@ class BaseSaaSConnector(ABC):
         認証処理
         APIキー検証、OAuth2トークン取得など
         """
-        pass
     
     @abstractmethod
     async def validate_connection(self) -> bool:
@@ -109,7 +106,6 @@ class BaseSaaSConnector(ABC):
         接続の検証
         APIエンドポイントへの到達性確認
         """
-        pass
     
     # === 読み取り操作 ===
     
@@ -124,7 +120,6 @@ class BaseSaaSConnector(ABC):
         """
         リソース一覧の取得
         """
-        pass
     
     @abstractmethod
     async def get_resource(
@@ -135,7 +130,6 @@ class BaseSaaSConnector(ABC):
         """
         単一リソースの取得
         """
-        pass
     
     @abstractmethod
     async def search_resources(
@@ -147,7 +141,6 @@ class BaseSaaSConnector(ABC):
         """
         リソースの検索
         """
-        pass
     
     # === スナップショット・プレビュー ===
     
@@ -161,7 +154,6 @@ class BaseSaaSConnector(ABC):
         リソースのスナップショット作成
         現在の状態を保存
         """
-        pass
     
     @abstractmethod
     async def generate_preview(
@@ -173,7 +165,6 @@ class BaseSaaSConnector(ABC):
         変更のプレビュー生成
         実際の変更は行わない
         """
-        pass
     
     @abstractmethod
     async def validate_changes(
@@ -186,7 +177,6 @@ class BaseSaaSConnector(ABC):
         変更の検証
         返り値: (valid: bool, errors: List[str])
         """
-        pass
     
     # === 変更操作 ===
     
@@ -202,7 +192,6 @@ class BaseSaaSConnector(ABC):
         変更の適用
         dry_run=Trueの場合はシミュレーションのみ
         """
-        pass
     
     @abstractmethod
     async def create_resource(
@@ -213,7 +202,6 @@ class BaseSaaSConnector(ABC):
         """
         新規リソースの作成
         """
-        pass
     
     @abstractmethod
     async def update_resource(
@@ -227,7 +215,6 @@ class BaseSaaSConnector(ABC):
         リソースの更新
         partial=Trueの場合は部分更新
         """
-        pass
     
     @abstractmethod
     async def delete_resource(
@@ -240,7 +227,6 @@ class BaseSaaSConnector(ABC):
         リソースの削除
         soft_delete=Trueの場合は論理削除
         """
-        pass
     
     # === ロールバック ===
     
@@ -252,7 +238,6 @@ class BaseSaaSConnector(ABC):
         """
         変更のロールバック
         """
-        pass
     
     @abstractmethod
     async def can_rollback(
@@ -262,7 +247,6 @@ class BaseSaaSConnector(ABC):
         """
         ロールバック可能かチェック
         """
-        pass
     
     # === Webhook ===
     

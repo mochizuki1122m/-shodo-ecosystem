@@ -7,14 +7,12 @@ import asyncio
 import hashlib
 import json
 import re
-import time
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 
 import httpx
-from pydantic import BaseModel
 from cachetools import TTLCache
 from ...utils.correlation import get_correlation_id
 
@@ -59,6 +57,7 @@ class DualPathEngine:
         self.retry_count = retry_count or getattr(settings, 'vllm_retry_count', 3)
         self.cache_ttl = cache_ttl
         self.fallback_to_rules = fallback_to_rules
+        self.engine = getattr(settings, 'inference_engine', 'vllm')
         
         # TTL付きキャッシュ（LRU + TTL）
         self.cache = TTLCache(maxsize=1000, ttl=cache_ttl)
@@ -329,28 +328,44 @@ class DualPathEngine:
         return best_match
     
     async def _ai_based_analysis(self, text: str, context: Optional[Dict]) -> Optional[Dict]:
-        """AI（vLLM）を使用した解析"""
+        """AI（vLLM/Proxy）を使用した解析"""
         try:
             async with httpx.AsyncClient() as client:
+                if self.engine == 'vllm':
+                    url = f"{self.vllm_url}/v1/analyze"
+                    payload = {"text": text, "context": context, "mode": "ai_only"}
+                else:
+                    # Node proxy expects chat/completions; adapt prompt with simple schema
+                    url = f"{self.vllm_url}/v1/chat/completions"
+                    payload = {
+                        "model": getattr(__import__('builtins'), 'str')(getattr(__import__('builtins'), 'str',))(""),
+                        "messages": [
+                            {"role": "system", "content": "日本語テキストの意図/エンティティをJSONで返す"},
+                            {"role": "user", "content": text}
+                        ],
+                        "max_tokens": 512,
+                        "temperature": 0.3,
+                        "stream": False
+                    }
                 response = await client.post(
-                    f"{self.vllm_url}/v1/analyze",
-                    json={
-                        "text": text,
-                        "context": context,
-                        "mode": "ai_only"
-                    },
+                    url,
+                    json=payload,
                     headers={
                         "X-Correlation-ID": get_correlation_id(None)
                     },
                     timeout=5.0
                 )
-                
                 if response.status_code == 200:
-                    return response.json()
+                    data = response.json()
+                    if self.engine == 'vllm':
+                        return data
+                    else:
+                        # 代理応答をNLPスキーマへ単純マッピング
+                        text_out = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                        return {"intent": "unknown", "confidence": 0.6, "entities": {"raw": text_out}}
                 else:
                     logger.error(f"AI analysis failed: {response.status_code}")
                     return None
-                    
         except Exception as e:
             logger.error(f"AI analysis error: {e}")
             return None

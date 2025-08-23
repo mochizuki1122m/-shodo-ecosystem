@@ -2,17 +2,14 @@
 LPR (Limited Proxy Rights) システム実装
 """
 
-import secrets
 import hashlib
-import json
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List, Any
+import json
 import uuid
-
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
 
-from ...models.models import User, Session
+
 from ...core.exceptions import AuthenticationException, AuthorizationException
 from ...core.security import JWTManager
 
@@ -228,9 +225,7 @@ class LPRService:
     ):
         """トークン発行ログ"""
         # TODO: 監査ログテーブルに記録
-        pass
     
     async def _log_token_revoked(self, user_id: str, token_id: str):
         """トークン無効化ログ"""
         # TODO: 監査ログテーブルに記録
-        pass

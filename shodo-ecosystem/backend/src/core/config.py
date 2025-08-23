@@ -3,9 +3,8 @@
 全ての設定をこのファイルに集約
 """
 
-import os
 from typing import List, Optional
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings, Field, SecretStr
 from functools import lru_cache
 
 class Settings(BaseSettings):
@@ -41,14 +40,15 @@ class Settings(BaseSettings):
     vllm_timeout: int = Field(default=30, env="VLLM_TIMEOUT")
     vllm_retry_count: int = Field(default=3, env="VLLM_RETRY_COUNT")
     model_name: str = Field(default="openai/gpt-oss-20b", env="MODEL_NAME")
+    inference_engine: str = Field(default="vllm", env="INFERENCE_ENGINE")
     
     # セキュリティ設定
-    secret_key: str = Field(
-        default="change-this-in-production-to-a-secure-random-string",
+    secret_key: SecretStr = Field(
+        default=SecretStr("change-this-in-production-to-a-secure-random-string"),
         env="SECRET_KEY"
     )
-    jwt_secret_key: str = Field(
-        default="change-this-in-production-to-a-secure-random-string",
+    jwt_secret_key: SecretStr = Field(
+        default=SecretStr("change-this-in-production-to-a-secure-random-string"),
         env="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     jwt_expiration_hours: int = Field(default=1, env="JWT_EXPIRATION_HOURS")
     
     # 暗号化設定
-    encryption_key: str = Field(
-        default="change-this-in-production-to-a-secure-random-string",
+    encryption_key: SecretStr = Field(
+        default=SecretStr("change-this-in-production-to-a-secure-random-string"),
         env="ENCRYPTION_KEY"
     )
     
@@ -73,10 +73,21 @@ class Settings(BaseSettings):
     cors_allow_methods: List[str] = Field(default=["*"], env="CORS_ALLOW_METHODS")
     cors_allow_headers: List[str] = Field(default=["*"], env="CORS_ALLOW_HEADERS")
     
+    # Trusted hosts
+    trusted_hosts: List[str] = Field(
+        default=["localhost", "127.0.0.1", "shodo.local", "*.shodo.local"],
+        env="TRUSTED_HOSTS"
+    )
+    
     # レート制限設定
     rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
     rate_limit_per_hour: int = Field(default=1000, env="RATE_LIMIT_PER_HOUR")
+    
+    # SLO 設定
+    slo_availability_target: float = Field(default=99.9, env="SLO_AVAILABILITY_TARGET")
+    slo_latency_p95_ms: int = Field(default=300, env="SLO_LATENCY_P95_MS")
+    slo_error_rate_percent: float = Field(default=1.0, env="SLO_ERROR_RATE_PERCENT")
     
     # ログ設定
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
@@ -132,7 +143,7 @@ class Settings(BaseSettings):
                 raise ValueError("JWT keys are required in production (JWT_PRIVATE_KEY, JWT_PUBLIC_KEY)")
             # 既定の脆弱なキーが残っていれば失敗
             weak = "change-this-in-production-to-a-secure-random-string"
-            if self.secret_key == weak or self.jwt_secret_key == weak or self.encryption_key == weak:
+            if self.secret_key.get_secret_value() == weak or self.jwt_secret_key.get_secret_value() == weak or self.encryption_key.get_secret_value() == weak:
                 raise ValueError("Default secrets must be overridden in production")
 
     class Config:
@@ -143,7 +154,7 @@ class Settings(BaseSettings):
         # 環境変数のリスト形式対応
         @classmethod
         def parse_env_var(cls, field_name: str, raw_val: str):
-            if field_name == "cors_origins":
+            if field_name in ("cors_origins", "trusted_hosts"):
                 return [x.strip() for x in raw_val.split(",")]
             return raw_val
 
@@ -154,7 +165,7 @@ def get_settings() -> Settings:
     # 本番検証
     try:
         s.validate_security()
-    except Exception as e:
+    except Exception:
         # 早期にわかるよう例外を再送出
         raise
     return s

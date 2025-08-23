@@ -2,7 +2,6 @@
 データベース接続管理
 """
 
-import os
 from typing import Tuple
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -78,12 +77,10 @@ async def init_db() -> Tuple[bool, bool]:
 
 async def close_db():
     """データベース接続クローズ"""
-    global engine, redis_client
-    
-    if engine:
+    if engine is not None:
         await engine.dispose()
     
-    if redis_client:
+    if redis_client is not None:
         await redis_client.close()
 
 async def get_db():

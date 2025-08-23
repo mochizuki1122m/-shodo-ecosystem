@@ -9,8 +9,7 @@ import hmac
 import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-import asyncio
-from decimal import Decimal
+
 
 from .base import (
     BaseSaaSConnector, ConnectorConfig, ConnectorCredentials,

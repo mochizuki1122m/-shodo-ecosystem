@@ -5,28 +5,18 @@ Perfect Monitoring System - 完璧な監視システム
 
 import asyncio
 import json
-import time
 from typing import Dict, Any, List, Optional, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 import structlog
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
 import psutil
-import threading
 
 # Monitoring dependencies
-import prometheus_client
 from prometheus_client import Counter, Histogram, Gauge, Summary, Info, CollectorRegistry, generate_latest
-import redis.asyncio as redis
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 
 # Alerting
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import requests  # Slack/Discord webhooks
 
 logger = structlog.get_logger()
 
@@ -487,7 +477,6 @@ class PerfectAlertingSystem:
         # データベースメトリクス
         # 実装: データベース接続プールの状態を取得
         
-        pass
     
     async def _alert_evaluation_worker(self):
         """アラート評価ワーカー"""
@@ -625,7 +614,7 @@ class PerfectAlertingSystem:
         # 実装: SMTP経由でのメール送信
         try:
             # 設定からメール情報を取得
-            email_config = {
+            _ = {
                 "smtp_server": "localhost",
                 "smtp_port": 587,
                 "username": "",
@@ -634,9 +623,9 @@ class PerfectAlertingSystem:
                 "to_emails": ["admin@shodo-ecosystem.com"]
             }
             
-            subject = f"[{alert.level.value.upper()}] MCP Alert: {alert.rule_name}"
+            _ = f"[{alert.level.value.upper()}] MCP Alert: {alert.rule_name}"
             
-            body = f"""
+            _ = f"""
 MCP システムアラート
 
 アラート名: {alert.rule_name}
@@ -663,7 +652,7 @@ MCP システムアラート
         """Slack通知"""
         
         try:
-            webhook_url = "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+            _ = "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
             
             color_map = {
                 AlertLevel.INFO: "#36a64f",
@@ -672,7 +661,7 @@ MCP システムアラート
                 AlertLevel.CRITICAL: "#8b0000"
             }
             
-            payload = {
+            _ = {
                 "text": f"MCP Alert: {alert.rule_name}",
                 "attachments": [
                     {
@@ -699,7 +688,7 @@ MCP システムアラート
         """Discord通知"""
         
         try:
-            webhook_url = "https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK"
+            _ = "https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK"
             
             embed_color = {
                 AlertLevel.INFO: 0x36a64f,
@@ -708,7 +697,7 @@ MCP システムアラート
                 AlertLevel.CRITICAL: 0x8b0000
             }
             
-            payload = {
+            _ = {
                 "embeds": [
                     {
                         "title": f"MCP Alert: {alert.rule_name}",
@@ -735,11 +724,11 @@ MCP システムアラート
         """Webhook通知"""
         
         try:
-            webhook_urls = [
+            _ = [
                 "https://your-monitoring-system.com/webhooks/mcp-alerts"
             ]
             
-            payload = {
+            _ = {
                 "alert_id": alert.alert_id,
                 "rule_name": alert.rule_name,
                 "level": alert.level.value,
@@ -875,6 +864,8 @@ MCP システムアラート
         
         try:
             # 実装: vLLMサービスのヘルスチェック
+            import httpx
+            from ...core.config import settings
             async with httpx.AsyncClient() as client:
                 response = await client.get(f"{settings.vllm_url}/health", timeout=10)
                 

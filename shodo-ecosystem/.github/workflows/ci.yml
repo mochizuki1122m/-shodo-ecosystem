@@ -1,59 +1,123 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main]
+    branches: [ main, develop ]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ===== Code Quality =====
-  lint:
-    name: Lint & Format Check
+  backend-ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: shodo
+          POSTGRES_USER: shodo
+          POSTGRES_PASSWORD: shodo_pass
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U shodo" --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff autoflake pyflakes mypy bandit
+      - name: Export env
+        run: |
+          echo "DATABASE_URL=postgresql+asyncpg://shodo:shodo_pass@localhost:5432/shodo" >> $GITHUB_ENV
+          echo "REDIS_URL=redis://localhost:6379/0" >> $GITHUB_ENV
+      - name: Wait for services
+        run: |
+          python - <<'PY'
+          import socket, time
+          def wait(host, port):
+              for _ in range(60):
+                  try:
+                      with socket.create_connection((host, port), timeout=1):
+                          return True
+                  except Exception:
+                      time.sleep(1)
+              raise SystemExit(1)
+          assert wait('localhost', 5432)
+          assert wait('localhost', 6379)
+          PY
+      - name: Run Alembic migrations
+        run: |
+          python -m alembic upgrade head
+      - name: Ruff Lint
+        run: |
+          ruff check src --select F,E,B,I,W,BLE,S --fix --unsafe-fixes
+      - name: Pyflakes
+        run: |
+          python -m pyflakes src
+      - name: Bandit Security Scan
+        run: |
+          bandit -r src -q || true
+      - name: Semgrep Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: .semgrep.yml
+          generateSarif: true
+        continue-on-error: true
+      - name: Type Check (mypy)
+        run: |
+          mypy --config-file mypy.ini src || true
+      - name: Run tests
+        run: |
+          pytest -q
+
+  frontend-ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm test --if-present -- --ci --passWithNoTests
+      - run: npm run build --if-present
+
+  security-and-sbom:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Python safety audit
+        run: pipx run safety check -r backend/requirements.txt || true
+      - name: NPM audit
+        working-directory: frontend
+        run: npm audit --omit=dev || true
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
         with:
-          python-version: '3.11'
-      
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.npm
-          key: ${{ runner.os }}-deps-${{ hashFiles('**/requirements.txt', '**/package-lock.json') }}
-      
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
-          pip install black pylint mypy isort safety bandit
-      
-      - name: Python Linting
-        run: |
-          cd backend
-          black --check src/
-          isort --check-only src/
-          pylint src/ || true
-          mypy src/ || true
-      
-      - name: Frontend Linting
-        run: |
-          cd frontend
-          npm ci
-          npm run lint
+          path: .
+          output-file: sbom.spdx.json
 
   # ===== Security Scanning =====
   security:

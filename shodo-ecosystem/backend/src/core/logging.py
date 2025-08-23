@@ -4,12 +4,11 @@ JSON形式での構造化ログ、相関ID、パフォーマンス計測
 """
 
 import logging
-import json
 import sys
 import time
 import traceback
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from contextvars import ContextVar
 from functools import wraps
 import uuid

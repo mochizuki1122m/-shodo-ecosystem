@@ -23,6 +23,43 @@ groups:
           summary: "High error rate detected"
           description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.instance }}"
 
+      # SLO: 可用性（直近30分の成功率）
+      - alert: SLOAvailabilityDegraded
+        expr: (sum(rate(http_requests_total{job="shodo-backend",status!~"5.."}[5m])) by (job))
+              /
+              (sum(rate(http_requests_total{job="shodo-backend"}[5m])) by (job))
+              < 0.999
+        for: 10m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "SLO availability degraded (<99.9%)"
+          description: "Availability over last 30m below SLO for {{ $labels.job }}"
+
+      # SLO: レイテンシ（P95がSLO閾値超過）
+      - alert: SLOLatencyP95Exceeded
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="shodo-backend"}[5m]))
+              > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "SLO latency P95 exceeded (>300ms)"
+          description: "P95 latency above SLO target for {{ $labels.instance }}"
+
+      # SLO: エラー率（1%超過）
+      - alert: SLOErrorRateExceeded
+        expr: rate(http_requests_total{job="shodo-backend",status=~"5.."}[5m]) / rate(http_requests_total{job="shodo-backend"}[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "SLO error rate exceeded (>1%)"
+          description: "Error rate above SLO target for {{ $labels.instance }}"
+
       # メモリ使用率アラート
       - alert: HighMemoryUsage
         expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.85

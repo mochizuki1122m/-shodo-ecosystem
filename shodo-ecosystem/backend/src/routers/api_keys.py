@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ..models.base import get_db
 from ..models.api_key import APIKey, APIKeyStatus, ServiceType

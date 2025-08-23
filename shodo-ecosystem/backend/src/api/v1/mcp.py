@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from datetime import datetime
-import json
+
 from .auth import get_current_user
 
 router = APIRouter()
@@ -388,7 +388,7 @@ async def execute_tool(tool_id: str, parameters: Dict[str, Any]) -> Dict:
             "invoice_id": f"inv_{datetime.utcnow().timestamp()}",
             "amount": parameters["amount"],
             "status": "pending",
-            "url": f"https://stripe.com/invoices/inv_xxx"
+            "url": "https://stripe.com/invoices/inv_xxx"
         }
     
     elif tool_id == "slack_post_message":
@@ -401,7 +401,7 @@ async def execute_tool(tool_id: str, parameters: Dict[str, Any]) -> Dict:
     elif tool_id == "notion_create_page":
         return {
             "page_id": f"page_{datetime.utcnow().timestamp()}",
-            "url": f"https://notion.so/page_xxx",
+            "url": "https://notion.so/page_xxx",
             "title": parameters["title"]
         }
     

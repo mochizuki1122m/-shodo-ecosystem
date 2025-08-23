@@ -4,8 +4,6 @@ APIキー自動取得・管理システム
 """
 
 import os
-import json
-import asyncio
 import hashlib
 from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
@@ -503,7 +501,6 @@ class APIKeyManager:
     async def _persist_key(self, config: APIKeyConfig):
         """キーを永続化（データベースなど）"""
         # TODO: データベースへの保存実装
-        pass
     
     async def _load_key(self, key_id: str) -> Optional[APIKeyConfig]:
         """キーをロード"""

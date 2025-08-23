@@ -4,15 +4,15 @@ APIキー関連のバックグラウンドタスク
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Optional
 import logging
 from celery import Task
-from sqlalchemy import select, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
+
 
 from .celery_app import celery_app
 from ..models.base import AsyncSessionLocal
-from ..models.api_key import APIKey, APIKeyStatus, ServiceType
+from ..models.api_key import APIKey, APIKeyStatus
 from ..models.user import UserSession
 from ..models.service_connection import ServiceConnection
 from ..services.auth.api_key_manager_db import DatabaseAPIKeyManager
@@ -291,12 +291,10 @@ def sync_service_connections(self):
 async def _sync_shopify(connection: ServiceConnection):
     """Shopifyデータを同期"""
     # TODO: Shopify APIを使用してデータを同期
-    pass
 
 async def _sync_stripe(connection: ServiceConnection):
     """Stripeデータを同期"""
     # TODO: Stripe APIを使用してデータを同期
-    pass
 
 @celery_app.task(
     name='src.tasks.api_key_tasks.rotate_api_key',

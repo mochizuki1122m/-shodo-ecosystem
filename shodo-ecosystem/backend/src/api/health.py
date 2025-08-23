@@ -4,7 +4,7 @@ MUST: Consistent health checks across all services
 """
 
 import asyncio
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -15,15 +15,13 @@ import httpx
 from ..core.config import settings
 from ..schemas.base import BaseResponse
 from ..services.database import check_database_health, check_redis_health
-from ..monitoring.metrics import (
-    slo_availability_ratio,
-    slo_latency_p95_seconds,
-    slo_error_rate_ratio
-)
 
 logger = structlog.get_logger()
 
 router = APIRouter(tags=["Health"])
+
+# 再利用するHTTPクライアント（接続プール/Keep-Alive）
+_httpx_client = httpx.AsyncClient(timeout=5.0)
 
 class HealthStatus(Enum):
     """Health status levels"""
@@ -196,25 +194,24 @@ class HealthChecker:
     async def _check_ai_server(self) -> ComponentHealth:
         """Check AI server health"""
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{settings.vllm_url}/health")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    return ComponentHealth(
-                        name="ai_server",
-                        status=HealthStatus.HEALTHY,
-                        metadata={
-                            "engine": settings.inference_engine,
-                            "model": data.get("model", "unknown")
-                        }
-                    )
-                else:
-                    return ComponentHealth(
-                        name="ai_server",
-                        status=HealthStatus.DEGRADED,
-                        message=f"AI server returned {response.status_code}"
-                    )
+            response = await _httpx_client.get(f"{settings.vllm_url}/health")
+            
+            if response.status_code == 200:
+                data = response.json()
+                return ComponentHealth(
+                    name="ai_server",
+                    status=HealthStatus.HEALTHY,
+                    metadata={
+                        "engine": settings.inference_engine,
+                        "model": data.get("model", "unknown")
+                    }
+                )
+            else:
+                return ComponentHealth(
+                    name="ai_server",
+                    status=HealthStatus.DEGRADED,
+                    message=f"AI server returned {response.status_code}"
+                )
         except Exception as e:
             return ComponentHealth(
                 name="ai_server",
@@ -233,7 +230,7 @@ class HealthChecker:
                 status=HealthStatus.HEALTHY,
                 metadata={"workers": 4, "queues": ["default", "priority"]}
             )
-        except Exception as e:
+        except Exception:
             return ComponentHealth(
                 name="celery",
                 status=HealthStatus.DEGRADED,

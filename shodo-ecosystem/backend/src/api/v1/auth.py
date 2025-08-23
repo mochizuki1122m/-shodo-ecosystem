@@ -4,16 +4,15 @@ SSOT準拠、BaseResponse統一、JWT標準化実装
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 import uuid
 import hashlib
-import secrets
 from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr, Field, validator
 from passlib.context import CryptContext
-from jose import jwt, JWTError
+from jose import jwt
 
-from ...schemas.base import BaseResponse, ErrorResponse, ErrorCode
+from ...schemas.base import BaseResponse
 from ...core.config import settings
 from ...services.database import get_db_session
 from ...middleware.auth import get_current_user, CurrentUser
@@ -126,13 +125,13 @@ def create_access_token(
         if not private_key:
             # フォールバック
             algorithm = 'HS256'
-            secret = settings.secret_key if hasattr(settings, 'secret_key') else settings.jwt_secret_key
+            secret = (settings.secret_key.get_secret_value() if hasattr(settings, 'secret_key') else settings.jwt_secret_key.get_secret_value())
             token = jwt.encode(claims, secret, algorithm=algorithm)
         else:
             token = jwt.encode(claims, private_key, algorithm='RS256')
     else:
         # 開発: HS256
-        secret = settings.secret_key if hasattr(settings, 'secret_key') else settings.jwt_secret_key
+        secret = (settings.secret_key.get_secret_value() if hasattr(settings, 'secret_key') else settings.jwt_secret_key.get_secret_value())
         token = jwt.encode(claims, secret, algorithm='HS256')
     
     return token, expires_in
@@ -171,7 +170,7 @@ async def register(
         # TODO: 実際のDBクエリに置き換え
         
         # パスワードのハッシュ化
-        hashed_password = hash_password(request.password)
+        _ = hash_password(request.password)  # 実DB保存実装時に使用
         
         # ユーザー作成
         user_id = str(uuid.uuid4())

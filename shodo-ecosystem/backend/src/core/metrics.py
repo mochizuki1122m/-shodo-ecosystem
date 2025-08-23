@@ -3,10 +3,9 @@
 Prometheus形式のメトリクス収集と公開
 """
 
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 from datetime import datetime
 import time
-import asyncio
 from functools import wraps
 from dataclasses import dataclass, field
 from collections import defaultdict
@@ -303,7 +302,7 @@ def track_time(metric_name: str = None, labels: Optional[Dict[str, str]] = None)
                 
                 return result
             
-            except Exception as e:
+            except Exception:
                 duration = time.time() - start_time
                 metrics_collector.observe(name, duration, {**(labels or {}), 'status': 'error'})
                 raise
@@ -321,7 +320,7 @@ def track_time(metric_name: str = None, labels: Optional[Dict[str, str]] = None)
                 
                 return result
             
-            except Exception as e:
+            except Exception:
                 duration = time.time() - start_time
                 metrics_collector.observe(name, duration, {**(labels or {}), 'status': 'error'})
                 raise
@@ -346,7 +345,7 @@ def count_calls(metric_name: str = None, labels: Optional[Dict[str, str]] = None
                 metrics_collector.increment(name, 1, {**(labels or {}), 'status': 'success'})
                 return result
             
-            except Exception as e:
+            except Exception:
                 metrics_collector.increment(name, 1, {**(labels or {}), 'status': 'error'})
                 raise
         
@@ -359,7 +358,7 @@ def count_calls(metric_name: str = None, labels: Optional[Dict[str, str]] = None
                 metrics_collector.increment(name, 1, {**(labels or {}), 'status': 'success'})
                 return result
             
-            except Exception as e:
+            except Exception:
                 metrics_collector.increment(name, 1, {**(labels or {}), 'status': 'error'})
                 raise
         

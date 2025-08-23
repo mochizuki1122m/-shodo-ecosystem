@@ -2,7 +2,7 @@
 統一的な例外処理システム
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from fastapi import HTTPException, status
 
 class BaseAPIException(HTTPException):

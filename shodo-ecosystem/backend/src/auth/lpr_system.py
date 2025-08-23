@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 import asyncio
-from playwright.async_api import async_playwright, Page, BrowserContext
+from playwright.async_api import async_playwright, Page
 import httpx
 
 @dataclass
@@ -589,7 +589,7 @@ async def example_usage():
     
     # ユーザーの全権限で操作可能
     response = await session.get("https://mystore.myshopify.com/admin/api/2024-01/orders.json")
-    orders = response.json()
+    _ = response.json()
     
     # 3. 監査ログの確認
     print(f"Operations performed: {len(lpr.operations_log)}")

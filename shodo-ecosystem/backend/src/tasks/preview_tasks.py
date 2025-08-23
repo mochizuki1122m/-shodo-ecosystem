@@ -5,7 +5,6 @@
 from celery import Task
 from ..tasks.celery_app import celery_app
 import asyncio
-import json
 from typing import Dict, Any
 
 class PreviewTask(Task):

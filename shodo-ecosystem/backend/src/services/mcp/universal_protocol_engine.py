@@ -4,25 +4,14 @@ Universal Protocol Engine - 汎用自動プロトコル実行システム
 """
 
 import asyncio
-import json
 import re
-import ast
-from typing import Dict, Any, List, Optional, Callable, Union, Type
-from dataclasses import dataclass, field
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass
 from enum import Enum
-from abc import ABC, abstractmethod
 import structlog
 import importlib.util
-from pathlib import Path
 
 # AI/ML dependencies for pattern recognition
-import torch
-import transformers
-from sklearn.cluster import KMeans
-import cv2
-import numpy as np
-from PIL import Image
-import pytesseract
 
 logger = structlog.get_logger()
 
@@ -822,7 +811,7 @@ async def demonstrate_universal_protocol():
         else:
             print(f"❌ {service['name']} connection failed: {result['error']}")
     
-    print(f"\n🎯 Universal Protocol Engine Results:")
+    print("\n🎯 Universal Protocol Engine Results:")
     print(f"   - Services analyzed: {len(services_to_test)}")
     print(f"   - Successful connections: {len(engine.active_protocols)}")
     print(f"   - Auto-generated protocols: {len(engine.active_protocols)}")

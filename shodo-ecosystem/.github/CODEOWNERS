@@ -1,0 +1,8 @@
+# CODEOWNERS
+# このリポジトリの各ディレクトリに対するデフォルトオーナーを定義します
+
+* @shodo-org/platform-team
+backend/ @shodo-org/backend-team
+frontend/ @shodo-org/frontend-team
+monitoring/ @shodo-org/sre-team
+k8s/ @shodo-org/sre-team

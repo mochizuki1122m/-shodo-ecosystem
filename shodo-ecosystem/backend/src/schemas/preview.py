@@ -106,4 +106,3 @@ class PreviewData(BaseModel):
 
 class PreviewResponse(BaseModel):
     """Full preview response (deprecated, use BaseResponse[PreviewData])"""
-    pass

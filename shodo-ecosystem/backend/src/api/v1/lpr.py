@@ -4,12 +4,11 @@ LPR (Limited Proxy Rights) API エンドポイント
 LPRトークンの発行、検証、失効、ステータス確認のAPIを提供。
 """
 
-import secrets
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, Body, Query
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, Request, Body, Query
+from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field, validator
 import structlog
 
@@ -30,7 +29,6 @@ from ...services.audit.audit_logger import (
     AuditSeverity,
 )
 from ...middleware.auth import get_current_user
-from ...core.config import settings
 from ...schemas.base import BaseResponse, error_response
 
 # 構造化ログ
@@ -511,11 +509,12 @@ async def batch_revoke_tokens(
     try:
         results = []
         
+        lpr = await get_lpr_service()
         for jti in jtis:
-            success = await lpr_service.revoke_token(
+            success = await lpr.revoke_token(
                 jti=jti,
                 reason=reason,
-                revoked_by=current_user["sub"],
+                user_id=current_user["sub"],
             )
             results.append({
                 "jti": jti,
@@ -526,7 +525,7 @@ async def batch_revoke_tokens(
         await audit_logger.log(
             event_type=AuditEventType.LPR_REVOKED,
             who=current_user["sub"],
-            what=f"batch_revoke",
+            what="batch_revoke",
             where="lpr_batch_revoke",
             why=reason,
             how="api",

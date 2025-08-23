@@ -6,7 +6,7 @@ Legal Compliance Engine - GPT-OSS-20駆動の法的制約解決システム
 import asyncio
 import json
 import re
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from dataclasses import dataclass
 from enum import Enum
 import structlog

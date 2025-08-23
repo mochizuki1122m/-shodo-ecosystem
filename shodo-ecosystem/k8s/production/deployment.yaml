@@ -72,6 +72,16 @@ spec:
           value: "4"
         - name: LOG_LEVEL
           value: "INFO"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: url
         - name: VAULT_ADDR
           valueFrom:
             configMapKeyRef:
