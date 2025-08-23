@@ -5,28 +5,13 @@ Universal SaaS Connector - 真の「全SaaS接続」実現
 
 import asyncio
 import json
-import re
-import base64
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 import structlog
-from pathlib import Path
-import importlib.util
 
 # Advanced dependencies
-import playwright
-from playwright.async_api import async_playwright, Page, Browser
-import cv2
-import numpy as np
-from PIL import Image
-import pytesseract
-import speech_recognition as sr
-import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.async_api import async_playwright, Page
 
 logger = structlog.get_logger()
 
@@ -707,7 +692,6 @@ class UniversalSaaSConnector:
     async def _apply_stealth_techniques(self, page: Page):
         """ボット検出回避技術"""
         # 実装: User-Agent偽装、WebDriver検出回避、行動パターン模倣
-        pass
     
     async def _take_screenshot(self, service_url: str) -> bytes:
         """スクリーンショット取得"""

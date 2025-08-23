@@ -225,9 +225,7 @@ class LPRService:
     ):
         """トークン発行ログ"""
         # TODO: 監査ログテーブルに記録
-        pass
     
     async def _log_token_revoked(self, user_id: str, token_id: str):
         """トークン無効化ログ"""
         # TODO: 監査ログテーブルに記録
-        pass

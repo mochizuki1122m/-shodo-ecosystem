@@ -7,28 +7,19 @@ import asyncio
 import json
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Callable, Union
+from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import structlog
-from datetime import datetime, timedelta
-import unittest
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-import aiohttp
+from datetime import datetime
+from unittest.mock import AsyncMock
 from aioresponses import aioresponses
 
 # Testing frameworks
-import pytest_asyncio
-import pytest_mock
-from pytest_benchmark import benchmark
-from playwright.async_api import async_playwright
 
 # Internal imports
 from .perfect_mcp_engine import PerfectLegalComplianceEngine, PerfectPatternRecognitionEngine
-from .perfect_execution_engine import PerfectExecutionEngine, MCPOperationResult
-from .perfect_integration_api import PerfectIntegrationAPI
-from .perfect_monitoring_system import PerfectMonitoringSystem
+from .perfect_execution_engine import PerfectExecutionEngine
 
 logger = structlog.get_logger()
 
@@ -560,7 +551,7 @@ class PerfectTestRunner:
         })
         
         # エンジンの初期化
-        legal_engine = PerfectLegalComplianceEngine(mock_llm)
+        PerfectLegalComplianceEngine(mock_llm)
         pattern_engine = PerfectPatternRecognitionEngine(mock_llm)
         execution_engine = PerfectExecutionEngine(mock_llm)
         
@@ -581,8 +572,6 @@ class PerfectTestRunner:
         """サービス接続フローのテスト"""
         
         # モックサービスの設定
-        mock_service_url = "https://mock-service.com"
-        mock_service_name = "mock_service"
         
         # 接続フローのシミュレーション
         connection_steps = [
@@ -694,15 +683,6 @@ class PerfectTestRunner:
         """Notion完全ワークフローのテスト"""
         
         # Notion特有のワークフロー
-        workflow_steps = [
-            "connect_to_notion",
-            "authenticate_oauth",
-            "list_pages",
-            "create_page",
-            "update_page_content",
-            "search_pages",
-            "manage_database"
-        ]
         
         # シミュレーション実行
         success_rate = 0.85  # 85%の成功率をシミュレート
@@ -732,7 +712,7 @@ class PerfectTestRunner:
         # 並行実行
         start_time = time.time()
         tasks = [mock_operation(i) for i in range(concurrent_count)]
-        results = await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
         total_time = time.time() - start_time
         
         # パフォーマンス評価

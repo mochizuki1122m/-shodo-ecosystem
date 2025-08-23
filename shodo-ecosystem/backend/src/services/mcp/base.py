@@ -3,9 +3,8 @@ MCP Base Classes - Model Context Protocol基盤実装
 「必要な機能を自動的に作成する」ための基盤クラス群
 """
 
-import asyncio
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 import structlog
@@ -114,7 +113,6 @@ class BaseMCPConnector(ABC):
         Returns:
             認証成功フラグ
         """
-        pass
     
     @abstractmethod
     async def execute_command(self, command: str, params: Dict[str, Any]) -> MCPResult:
@@ -128,7 +126,6 @@ class BaseMCPConnector(ABC):
         Returns:
             実行結果
         """
-        pass
     
     async def get_capabilities(self) -> List[MCPCapability]:
         """利用可能機能の取得"""
@@ -138,7 +135,7 @@ class BaseMCPConnector(ABC):
         """ヘルスチェック"""
         try:
             # 基本的な接続テスト
-            test_result = await self.execute_command("health", {})
+            await self.execute_command("health", {})
             return MCPResult(
                 success=True,
                 data={"status": "healthy", "capabilities": len(self.capabilities)},

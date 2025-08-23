@@ -5,18 +5,15 @@ RESTful、WebSocket、GraphQLに対応した統一インターフェース
 
 import asyncio
 import json
-import time
-from typing import Dict, Any, List, Optional, Union
-from dataclasses import dataclass
-from enum import Enum
+from typing import Dict, Any, List, Optional
 import structlog
 from datetime import datetime
 import uuid
 import httpx
 
 # FastAPI and related
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
@@ -30,7 +27,7 @@ from ...schemas.base import BaseResponse, error_response
 from ...core.config import settings
 from ...middleware.auth import get_current_user, CurrentUser
 from .perfect_mcp_engine import PerfectLegalComplianceEngine, PerfectPatternRecognitionEngine
-from .perfect_execution_engine import PerfectExecutionEngine, MCPOperationResult
+from .perfect_execution_engine import PerfectExecutionEngine
 
 logger = structlog.get_logger()
 
@@ -570,7 +567,7 @@ class PerfectIntegrationAPI:
                 }
             
             # パターン分析（簡易版）
-            pattern_analysis = await self._analyze_service_patterns(request.service_url)
+            await self._analyze_service_patterns(request.service_url)
             
             # 接続テスト
             test_result = await self._test_service_connection(
@@ -765,10 +762,10 @@ async def demonstrate_perfect_integration_api():
     print("🚀 Perfect Integration API Demo")
     print("=" * 50)
     
-    api = PerfectIntegrationAPI()
+    PerfectIntegrationAPI()
     
     # サービス接続のテスト
-    connect_request = MCPServiceRequest(
+    _ = MCPServiceRequest(
         service_url="https://web.zaico.co.jp",
         service_name="zaico",
         credentials={"username": "demo", "password": "demo"},

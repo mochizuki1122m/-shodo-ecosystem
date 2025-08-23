@@ -4,14 +4,11 @@ True MCP Engine - プロトコル自由設定思想の実現
 """
 
 import asyncio
-import json
-from typing import Dict, Any, List, Optional, Callable, Union
+from typing import Dict, Any, List, Callable
 from dataclasses import dataclass
 from enum import Enum
-from abc import ABC, abstractmethod
 import structlog
 import inspect
-import ast
 import importlib.util
 
 logger = structlog.get_logger()
@@ -230,7 +227,7 @@ class DynamicProtocol:
         
         code = f"if {condition}:\n"
         code += f"    {true_action}\n"
-        code += f"else:\n"
+        code += "else:\n"
         code += f"    {false_action}"
         
         return code
@@ -775,7 +772,7 @@ async def demonstrate_true_mcp():
         zaico_requirements
     )
     
-    print(f"✅ ZAICO Protocol Created:")
+    print("✅ ZAICO Protocol Created:")
     print(f"   - Primitives: {zaico_result['protocol_primitives']}")
     print(f"   - Flows: {zaico_result['protocol_flows']}")
     print(f"   - Rules: {zaico_result['protocol_rules']}")
@@ -801,7 +798,7 @@ async def demonstrate_true_mcp():
         shopify_requirements
     )
     
-    print(f"✅ Shopify Protocol Created:")
+    print("✅ Shopify Protocol Created:")
     print(f"   - Primitives: {shopify_result['protocol_primitives']}")
     print(f"   - Flows: {shopify_result['protocol_flows']}")
     print(f"   - Rules: {shopify_result['protocol_rules']}")

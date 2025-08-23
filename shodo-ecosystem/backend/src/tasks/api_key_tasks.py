@@ -291,12 +291,10 @@ def sync_service_connections(self):
 async def _sync_shopify(connection: ServiceConnection):
     """Shopifyデータを同期"""
     # TODO: Shopify APIを使用してデータを同期
-    pass
 
 async def _sync_stripe(connection: ServiceConnection):
     """Stripeデータを同期"""
     # TODO: Stripe APIを使用してデータを同期
-    pass
 
 @celery_app.task(
     name='src.tasks.api_key_tasks.rotate_api_key',

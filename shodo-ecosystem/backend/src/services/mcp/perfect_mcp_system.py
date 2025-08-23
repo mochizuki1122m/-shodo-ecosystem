@@ -4,17 +4,14 @@ Perfect MCP System - 完璧なModel Context Protocolシステム
 """
 
 import asyncio
-import json
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Union, Callable
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import structlog
-from datetime import datetime, timedelta
+from datetime import datetime
 import signal
-import sys
-from pathlib import Path
 import importlib
 
 # Internal imports
@@ -28,7 +25,6 @@ from .perfect_execution_engine import PerfectExecutionEngine, MCPOperationResult
 from .perfect_integration_api import PerfectIntegrationAPI, create_perfect_mcp_app
 from .perfect_monitoring_system import PerfectMonitoringSystem
 from .perfect_test_suite import PerfectTestRunner
-from .legal_compliance_engine import LegalComplianceEngine, EthicalAutomationEngine
 from ...core.config import settings
 
 logger = structlog.get_logger()
@@ -177,7 +173,7 @@ class PerfectMCPSystem:
             )
             
             # 接続テスト
-            test_response = await self.llm_client.chat.completions.create(
+            await self.llm_client.chat.completions.create(
                 model="gpt-oss-20b",
                 messages=[{"role": "user", "content": "Hello"}],
                 max_tokens=10
@@ -787,7 +783,6 @@ class PerfectMCPSystem:
     async def _cleanup_monitoring_system(self):
         """監視システムのクリーンアップ"""
         # 実装: 監視タスクの停止、リソースの解放
-        pass
     
     def get_app(self) -> Any:
         """FastAPIアプリケーションの取得"""

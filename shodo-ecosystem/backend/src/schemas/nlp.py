@@ -64,4 +64,3 @@ class NLPAnalysisData(BaseModel):
 
 class NLPResponse(BaseModel):
     """Full NLP response (deprecated, use BaseResponse[NLPAnalysisData])"""
-    pass

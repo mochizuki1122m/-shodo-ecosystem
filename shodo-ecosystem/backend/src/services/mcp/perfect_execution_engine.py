@@ -18,7 +18,8 @@ import httpx
 from .perfect_mcp_engine import MCPOperationResult, MCPConnectionStrategy
 
 # Browser automation
-from playwright.async_api import async_playwright, Browser, Page, TimeoutError
+from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError
+from prometheus_client import Counter, Histogram, Gauge, Summary
 
 # Monitoring and metrics
 

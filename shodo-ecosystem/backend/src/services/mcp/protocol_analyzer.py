@@ -524,7 +524,7 @@ class {spec.service_name.title()}Connector(BaseMCPConnector):
 
         # エンドポイント別メソッド生成
         for endpoint in spec.endpoints:
-            method_name = self._generate_method_name(endpoint)
+            self._generate_method_name(endpoint)
             method_code = self._generate_endpoint_method(endpoint)
             code_template += f"\n    {method_code}"
         

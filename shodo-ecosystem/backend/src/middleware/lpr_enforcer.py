@@ -9,7 +9,7 @@ import random
 from typing import Optional, Callable
 from datetime import datetime, timezone
 
-from fastapi import Request, Response, HTTPException, status
+from fastapi import Request, Response, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import structlog

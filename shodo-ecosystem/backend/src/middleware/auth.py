@@ -3,7 +3,7 @@
 JWT検証とユーザー認証の中央管理
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
 from datetime import datetime, timezone
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status

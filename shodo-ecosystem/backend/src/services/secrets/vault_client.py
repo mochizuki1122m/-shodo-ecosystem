@@ -4,15 +4,13 @@ MUST: All production secrets from Vault, never from environment
 """
 
 import os
-import json
-import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from datetime import datetime, timedelta
 import asyncio
 from functools import lru_cache
 
 import hvac
-from hvac.exceptions import InvalidPath, Forbidden, InvalidRequest
+from hvac.exceptions import InvalidPath, Forbidden
 import structlog
 
 from ...core.config import settings
@@ -240,7 +238,7 @@ class VaultClient:
             raise ValueError("Vault client not initialized")
         
         try:
-            full_path = f"{self.path_prefix}/{path}"
+            f"{self.path_prefix}/{path}"
             
             # Create new version
             # Implementation depends on secret type

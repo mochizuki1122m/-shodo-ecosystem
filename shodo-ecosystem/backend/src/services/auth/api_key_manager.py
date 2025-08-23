@@ -501,7 +501,6 @@ class APIKeyManager:
     async def _persist_key(self, config: APIKeyConfig):
         """キーを永続化（データベースなど）"""
         # TODO: データベースへの保存実装
-        pass
     
     async def _load_key(self, key_id: str) -> Optional[APIKeyConfig]:
         """キーをロード"""

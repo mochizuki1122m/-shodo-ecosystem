@@ -4,9 +4,8 @@ MCP エコシステム - 自動プロトコル生成・統合システム
 """
 
 import asyncio
-import json
 import importlib
-from typing import Dict, Any, List, Optional, Type
+from typing import Dict, Any, List, Type
 from dataclasses import dataclass
 from pathlib import Path
 import structlog

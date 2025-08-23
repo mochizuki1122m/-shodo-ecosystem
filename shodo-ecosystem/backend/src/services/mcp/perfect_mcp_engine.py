@@ -5,32 +5,17 @@ Perfect MCP Engine - 完璧なModel Context Protocolエコシステム
 
 import asyncio
 import json
-import time
-import uuid
-from typing import Dict, Any, List, Optional, Union, Callable, Type
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-from abc import ABC, abstractmethod
 import structlog
-from datetime import datetime, timedelta
-import hashlib
-import importlib.util
-from pathlib import Path
-import concurrent.futures
-import threading
+from datetime import datetime
 
 # External dependencies
 import httpx
-import openai
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 import cv2
 import numpy as np
-from PIL import Image
-import pytesseract
 from bs4 import BeautifulSoup
-import redis.asyncio as redis
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 
 logger = structlog.get_logger()
 
@@ -665,14 +650,14 @@ class PerfectPatternRecognitionEngine:
         """フォーム構造の分析"""
         
         fields = []
-        for field in form_element.find_all(['input', 'select', 'textarea']):
+        for form_field in form_element.find_all(['input', 'select', 'textarea']):
             field_info = {
-                "type": field.get('type', field.name),
-                "name": field.get('name', ''),
-                "id": field.get('id', ''),
-                "required": field.has_attr('required'),
-                "placeholder": field.get('placeholder', ''),
-                "value": field.get('value', '')
+                "type": form_field.get('type', form_field.name),
+                "name": form_field.get('name', ''),
+                "id": form_field.get('id', ''),
+                "required": form_field.has_attr('required'),
+                "placeholder": form_field.get('placeholder', ''),
+                "value": form_field.get('value', '')
             }
             
             # フィールドの意図分析
