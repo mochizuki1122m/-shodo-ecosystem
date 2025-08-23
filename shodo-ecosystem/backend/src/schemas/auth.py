@@ -30,3 +30,20 @@ class UserResponse(BaseModel):
     email: str = Field(..., description="メールアドレス")
     is_active: bool = Field(default=True, description="アクティブフラグ")
     created_at: datetime = Field(..., description="作成日時")
+
+# tests互換の追加エイリアス
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    confirm_password: str | None = None
+    username: str
+
+class LoginRequest(BaseModel):
+    email: EmailStr | None = None
+    username: str | None = None
+    password: str
+
+class UserInfo(BaseModel):
+    user_id: str
+    email: EmailStr
+    username: str

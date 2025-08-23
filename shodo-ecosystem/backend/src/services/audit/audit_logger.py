@@ -49,6 +49,16 @@ class AuditEventType(Enum):
     SERVICE_STOP = "service_stop"
     ERROR = "error"
 
+class AuditSeverity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+class AuditLogEntry(dict):
+    """シンプルな辞書ベースのログエントリ型（テスト互換用）"""
+    pass
+
 class AuditLogger:
     """
     Centralized audit logging with tamper resistance

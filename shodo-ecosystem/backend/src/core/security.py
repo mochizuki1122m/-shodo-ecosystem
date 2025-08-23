@@ -303,6 +303,9 @@ class DataEncryption:
         plaintext = self._fernet.decrypt(token.encode())
         return plaintext.decode()
 
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
 # Export security utilities
 __all__ = [
 	'pwd_context',

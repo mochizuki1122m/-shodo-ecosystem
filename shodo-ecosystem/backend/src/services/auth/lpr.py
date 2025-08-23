@@ -3,229 +3,146 @@ LPR (Limited Proxy Rights) システム実装
 """
 
 import hashlib
-from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Any
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional, List, Any, Tuple
 import json
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.security import JWTManager
 
-from ...core.exceptions import AuthenticationException, AuthorizationException
-from ...core.security import JWTManager
+@dataclass
+class LPRScope:
+    method: str
+    url_pattern: str
+    description: str | None = None
 
+@dataclass
+class LPRPolicy:
+    rate_limit_rps: float = 2.0
+    rate_limit_burst: int = 20
+    human_speed_jitter: bool = True
+    require_device_match: bool = True
+    allow_concurrent: bool = False
+    max_request_size: int = 5 * 1024 * 1024
+
+@dataclass
+class DeviceFingerprint:
+    user_agent: str | None = None
+    accept_language: str | None = None
+    screen_resolution: str | None = None
+    timezone: str | None = None
+    platform: str | None = None
+    hardware_concurrency: int | None = None
+    memory: int | None = None
+    canvas_fp: str | None = None
+    webgl_fp: str | None = None
+    audio_fp: str | None = None
+
+    def calculate_hash(self) -> str:
+        payload = json.dumps(self.__dict__, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+@dataclass
 class LPRToken:
-    """LPRトークンクラス"""
-    
-    def __init__(
-        self,
-        token_id: str,
-        user_id: str,
-        service: str,
-        scopes: List[str],
-        device_fingerprint: str,
-        expires_at: datetime
-    ):
-        self.token_id = token_id
-        self.user_id = user_id
-        self.service = service
-        self.scopes = scopes
-        self.device_fingerprint = device_fingerprint
-        self.expires_at = expires_at
-        self.created_at = datetime.utcnow()
-        self.is_revoked = False
-    
-    def to_dict(self) -> Dict:
-        """辞書形式に変換"""
-        return {
-            "token_id": self.token_id,
-            "user_id": self.user_id,
-            "service": self.service,
-            "scopes": self.scopes,
-            "device_fingerprint": self.device_fingerprint,
-            "expires_at": self.expires_at.isoformat(),
-            "created_at": self.created_at.isoformat(),
-            "is_revoked": self.is_revoked
-        }
-    
-    def is_valid(self) -> bool:
-        """トークンの有効性チェック"""
-        if self.is_revoked:
-            return False
-        if datetime.utcnow() > self.expires_at:
-            return False
-        return True
-    
-    def has_scope(self, required_scope: str) -> bool:
-        """スコープの確認"""
-        return required_scope in self.scopes
+    jti: str
+    subject_pseudonym: str
+    device_fingerprint_hash: str
+    scope_allowlist: List[LPRScope]
+    origins_allowlist: List[str]
+    issued_at: datetime
+    expires_at: datetime
 
 class LPRService:
-    """LPRサービスクラス"""
-    
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.tokens: Dict[str, LPRToken] = {}  # メモリ内トークンストア（本番ではRedis推奨）
-    
+    """簡易LPRサービス（テスト用にメモリ実装）"""
+    def __init__(self):
+        self.revoked: Dict[str, Dict[str, Any]] = {}
+
     async def issue_token(
         self,
         user_id: str,
-        service: str,
-        scopes: List[str],
-        device_info: Dict[str, Any],
-        duration_minutes: int = 30
-    ) -> str:
-        """LPRトークン発行"""
-        
-        # デバイスフィンガープリント生成
-        device_fingerprint = self._generate_device_fingerprint(device_info)
-        
-        # トークンID生成
-        token_id = str(uuid.uuid4())
-        
-        # トークン作成
+        device_fingerprint: DeviceFingerprint,
+        scopes: List[LPRScope],
+        origins: List[str],
+        policy: Optional[LPRPolicy] = None,
+        ttl_seconds: int = 3600,
+    ) -> Tuple[LPRToken, str]:
+        now = datetime.now(timezone.utc)
+        jti = str(uuid.uuid4())
         token = LPRToken(
-            token_id=token_id,
-            user_id=user_id,
-            service=service,
-            scopes=scopes,
-            device_fingerprint=device_fingerprint,
-            expires_at=datetime.utcnow() + timedelta(minutes=duration_minutes)
+            jti=jti,
+            subject_pseudonym=hashlib.sha256(user_id.encode()).hexdigest(),
+            device_fingerprint_hash=device_fingerprint.calculate_hash(),
+            scope_allowlist=scopes,
+            origins_allowlist=origins,
+            issued_at=now,
+            expires_at=now + timedelta(seconds=ttl_seconds),
         )
-        
-        # トークン保存
-        self.tokens[token_id] = token
-        
-        # JWTトークン生成
-        jwt_token = JWTManager.create_access_token(
-            data={
-                "sub": user_id,
-                "token_id": token_id,
-                "service": service,
-                "scopes": scopes,
-                "device_fingerprint": device_fingerprint
-            },
-            expires_delta=timedelta(minutes=duration_minutes)
-        )
-        
-        # 監査ログ記録
-        await self._log_token_issued(user_id, service, scopes, device_info)
-        
-        return jwt_token
-    
+        claims = {
+            "jti": jti,
+            "sub": token.subject_pseudonym,
+            "dfp": token.device_fingerprint_hash,
+            "exp": int(token.expires_at.timestamp()),
+            "iat": int(now.timestamp()),
+            "scopes": [s.__dict__ for s in scopes],
+            "origins": origins,
+        }
+        token_str = JWTManager.create_access_token(claims)
+        return token, token_str
+
     async def verify_token(
         self,
-        token: str,
-        required_scope: Optional[str] = None,
-        device_info: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """トークン検証"""
-        
-        # JWT検証
+        token_str: str,
+        request_method: str,
+        request_url: str,
+        request_origin: str,
+        device_fingerprint: DeviceFingerprint,
+    ) -> Tuple[bool, Optional[LPRToken], Optional[str]]:
         try:
-            payload = JWTManager.verify_token(token)
+            data = JWTManager.verify_token(type("Creds", (), {"credentials": token_str}))
         except Exception as e:
-            raise AuthenticationException(f"Invalid token: {str(e)}")
-        
-        token_id = payload.get("token_id")
-        
-        # トークン取得
-        lpr_token = self.tokens.get(token_id)
-        if not lpr_token:
-            raise AuthenticationException("Token not found")
-        
-        # 有効性チェック
-        if not lpr_token.is_valid():
-            raise AuthenticationException("Token is invalid or expired")
-        
-        # デバイス検証
-        if device_info:
-            device_fingerprint = self._generate_device_fingerprint(device_info)
-            if device_fingerprint != lpr_token.device_fingerprint:
-                raise AuthorizationException("Device mismatch")
-        
-        # スコープ検証
-        if required_scope and not lpr_token.has_scope(required_scope):
-            raise AuthorizationException(f"Missing required scope: {required_scope}")
-        
-        return {
-            "user_id": lpr_token.user_id,
-            "service": lpr_token.service,
-            "scopes": lpr_token.scopes,
-            "token_id": lpr_token.token_id
+            return False, None, str(e)
+        jti = data.user_id or ""
+        if jti in self.revoked:
+            return False, None, "revoked"
+        now = datetime.now(timezone.utc)
+        try:
+            payload = json.loads(json.dumps(data.__dict__, default=str))
+        except Exception:
+            payload = data.__dict__
+        exp = payload.get("exp")
+        if exp and now.timestamp() > float(exp):
+            return False, None, "expired"
+        dfp_hash = device_fingerprint.calculate_hash()
+        if payload.get("dfp") and payload.get("dfp") != dfp_hash:
+            return False, None, "device mismatch"
+        scopes = [LPRScope(**s) for s in payload.get("scopes", [])]
+        allowed = any(
+            s.method.upper() == request_method.upper() and self._url_match(s.url_pattern, request_url)
+            for s in scopes
+        )
+        if not allowed:
+            return False, None, "scope violation"
+        token = LPRToken(
+            jti=payload.get("jti", ""),
+            subject_pseudonym=payload.get("sub", ""),
+            device_fingerprint_hash=payload.get("dfp", ""),
+            scope_allowlist=scopes,
+            origins_allowlist=payload.get("origins", []),
+            issued_at=datetime.fromtimestamp(payload.get("iat", now.timestamp()), tz=timezone.utc),
+            expires_at=datetime.fromtimestamp(payload.get("exp", now.timestamp()), tz=timezone.utc),
+        )
+        return True, token, None
+
+    async def revoke_token(self, jti: str, reason: str, revoked_by: str) -> bool:
+        self.revoked[jti] = {
+            "revoked_at": datetime.now(timezone.utc).isoformat(),
+            "reason": reason,
+            "revoked_by": revoked_by,
         }
-    
-    async def revoke_token(self, token_id: str, user_id: str) -> bool:
-        """トークン無効化"""
-        
-        lpr_token = self.tokens.get(token_id)
-        if not lpr_token:
-            return False
-        
-        # ユーザー確認
-        if lpr_token.user_id != user_id:
-            raise AuthorizationException("Unauthorized to revoke this token")
-        
-        # トークン無効化
-        lpr_token.is_revoked = True
-        
-        # 監査ログ記録
-        await self._log_token_revoked(user_id, token_id)
-        
         return True
-    
-    async def list_active_tokens(self, user_id: str) -> List[Dict]:
-        """アクティブトークン一覧"""
-        
-        active_tokens = []
-        for token_id, token in self.tokens.items():
-            if token.user_id == user_id and token.is_valid():
-                active_tokens.append({
-                    "token_id": token_id,
-                    "service": token.service,
-                    "scopes": token.scopes,
-                    "expires_at": token.expires_at.isoformat(),
-                    "created_at": token.created_at.isoformat()
-                })
-        
-        return active_tokens
-    
-    async def cleanup_expired_tokens(self) -> int:
-        """期限切れトークンのクリーンアップ"""
-        
-        expired_tokens = []
-        for token_id, token in self.tokens.items():
-            if not token.is_valid():
-                expired_tokens.append(token_id)
-        
-        for token_id in expired_tokens:
-            del self.tokens[token_id]
-        
-        return len(expired_tokens)
-    
-    def _generate_device_fingerprint(self, device_info: Dict[str, Any]) -> str:
-        """デバイスフィンガープリント生成"""
-        
-        fingerprint_data = {
-            "user_agent": device_info.get("user_agent", ""),
-            "ip_address": device_info.get("ip_address", ""),
-            "screen_resolution": device_info.get("screen_resolution", ""),
-            "timezone": device_info.get("timezone", ""),
-            "language": device_info.get("language", "")
-        }
-        
-        fingerprint_string = json.dumps(fingerprint_data, sort_keys=True)
-        return hashlib.sha256(fingerprint_string.encode()).hexdigest()
-    
-    async def _log_token_issued(
-        self,
-        user_id: str,
-        service: str,
-        scopes: List[str],
-        device_info: Dict[str, Any]
-    ):
-        """トークン発行ログ"""
-        # TODO: 監査ログテーブルに記録
-    
-    async def _log_token_revoked(self, user_id: str, token_id: str):
-        """トークン無効化ログ"""
-        # TODO: 監査ログテーブルに記録
+
+    def _url_match(self, pattern: str, url: str) -> bool:
+        if pattern.endswith("*"):
+            return url.startswith(pattern[:-1])
+        return pattern == url

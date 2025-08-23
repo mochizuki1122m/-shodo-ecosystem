@@ -5,13 +5,19 @@ Playwrightを使用してヘッドフルブラウザでのログインプロセ�
 成功を検知してセキュアな認証情報を取得します。
 """
 
+import os
 import asyncio
 import secrets
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
-from playwright.async_api import async_playwright, Browser, Page
+if os.getenv("LIGHT_TESTS") != "1":
+    from playwright.async_api import async_playwright, Browser, Page
+else:
+    async_playwright = None
+    Browser = object  # type: ignore
+    Page = object  # type: ignore
 import structlog
 
 # 構造化ログ
@@ -79,6 +85,9 @@ class VisibleLoginDetector:
     
     async def start(self, headless: bool = False):
         """ブラウザを起動"""
+        if os.getenv("LIGHT_TESTS") == "1":
+            logger.info("LIGHT_TESTS mode: skipping playwright startup")
+            return
         self.playwright = await async_playwright().start()
         
         # セキュリティ設定を含むブラウザ起動
@@ -96,6 +105,8 @@ class VisibleLoginDetector:
     
     async def stop(self):
         """ブラウザを停止"""
+        if os.getenv("LIGHT_TESTS") == "1":
+            return
         if self.browser:
             await self.browser.close()
         if self.playwright:
