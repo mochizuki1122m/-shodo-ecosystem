@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import Column, DateTime, String
 import uuid
 
+LIGHT_TESTS = os.getenv("LIGHT_TESTS") == "1"
+
 # データベースURL
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -21,32 +23,55 @@ DATABASE_URL = os.getenv(
 # 同期用URL（マイグレーション用）
 SYNC_DATABASE_URL = DATABASE_URL.replace("+asyncpg", "")
 
-# エンジンの作成
-async_engine = create_async_engine(
-    DATABASE_URL,
-    echo=os.getenv("DEBUG", "false").lower() == "true",
-    pool_size=20,
-    max_overflow=40,
-    pool_pre_ping=True,
-)
-
-sync_engine = create_engine(
-    SYNC_DATABASE_URL,
-    echo=os.getenv("DEBUG", "false").lower() == "true",
-)
-
-# セッションファクトリ
-AsyncSessionLocal = async_sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
-
-SessionLocal = sessionmaker(
-    sync_engine,
-    autocommit=False,
-    autoflush=False,
-)
+if not LIGHT_TESTS:
+    # エンジンの作成
+    async_engine = create_async_engine(
+        DATABASE_URL,
+        echo=os.getenv("DEBUG", "false").lower() == "true",
+        pool_size=20,
+        max_overflow=40,
+        pool_pre_ping=True,
+    )
+    
+    sync_engine = create_engine(
+        SYNC_DATABASE_URL,
+        echo=os.getenv("DEBUG", "false").lower() == "true",
+    )
+    
+    # セッションファクトリ
+    AsyncSessionLocal = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    
+    SessionLocal = sessionmaker(
+        sync_engine,
+        autocommit=False,
+        autoflush=False,
+    )
+else:
+    # 軽量テスト時はダミーを用意
+    async_engine = None
+    sync_engine = None
+    
+    class _DummyAsyncSession:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+        async def commit(self):
+            pass
+        async def rollback(self):
+            pass
+        async def close(self):
+            pass
+    
+    def AsyncSessionLocal():  # type: ignore
+        return _DummyAsyncSession()
+    
+    def SessionLocal():  # type: ignore
+        return None
 
 # メタデータ
 metadata = MetaData()
@@ -86,7 +111,13 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     非同期データベースセッションを取得
     """
-    async with AsyncSessionLocal() as session:
+    if LIGHT_TESTS:
+        # ダミーセッションを返す
+        async with AsyncSessionLocal() as session:  # type: ignore
+            yield session
+            return
+    
+    async with AsyncSessionLocal() as session:  # type: ignore
         try:
             yield session
             await session.commit()
@@ -100,7 +131,7 @@ def get_sync_db() -> Session:
     """
     同期データベースセッションを取得（マイグレーション用）
     """
-    db = SessionLocal()
+    db = SessionLocal()  # type: ignore
     try:
         yield db
         db.commit()
@@ -114,9 +145,11 @@ async def init_db():
     """
     データベースの初期化
     """
-    async with async_engine.begin() as conn:
+    if LIGHT_TESTS:
+        return
+    async with async_engine.begin():  # type: ignore
         # テーブルの作成
-        await conn.run_sync(Base.metadata.create_all)
+        await async_engine.run_sync(Base.metadata.create_all)  # type: ignore
     
     print("Database initialized successfully")
 
@@ -124,7 +157,9 @@ async def drop_db():
     """
     データベースの削除（開発用）
     """
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    if LIGHT_TESTS:
+        return
+    async with async_engine.begin():  # type: ignore
+        await async_engine.run_sync(Base.metadata.drop_all)  # type: ignore
     
     print("Database dropped successfully")

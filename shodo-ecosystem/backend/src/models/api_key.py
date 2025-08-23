@@ -57,7 +57,7 @@ class APIKey(BaseModel):
     
     # 権限とメタデータ
     permissions = Column(JSON, default=list, nullable=False)
-    metadata = Column(JSON, default=dict, nullable=False)
+    extra_metadata = Column(JSON, default=dict, nullable=False)
     
     # OAuth情報
     oauth_state = Column(String(255), nullable=True)
@@ -177,7 +177,7 @@ class APIKeyUsage(BaseModel):
     error_message = Column(Text, nullable=True)
     
     # メタデータ
-    metadata = Column(JSON, default=dict, nullable=False)
+    extra_metadata = Column(JSON, default=dict, nullable=False)
     
     # リレーション
     api_key = relationship("APIKey", back_populates="usage_logs")

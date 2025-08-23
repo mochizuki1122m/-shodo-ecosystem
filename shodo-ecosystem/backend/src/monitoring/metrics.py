@@ -316,6 +316,14 @@ def get_metrics() -> str:
     """Prometheus メトリクスを取得"""
     return generate_latest(registry)
 
+# 追加: JSONメトリクス（軽量用）
+def get_metrics_json() -> Dict[str, int]:
+    """テストや軽量用途向けの簡易JSONメトリクス"""
+    return {
+        "http_requests_total": 0,
+        "errors_total": 0,
+    }
+
 def get_metrics_content_type() -> str:
     """Prometheus メトリクスのContent-Typeを取得"""
     return CONTENT_TYPE_LATEST
