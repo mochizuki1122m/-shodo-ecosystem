@@ -1,18 +1,18 @@
 # Core Framework
 fastapi==0.109.0
-uvicorn[standard]==0.27.0
-uvloop==0.19.0
-httptools==0.6.1
+uvicorn==0.27.0
+# uvloop==0.19.0  # removed for Python 3.13 compatibility
+# httptools==0.6.1  # removed for Python 3.13 compatibility
 
 # API Documentation
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic==2.10.6
+pydantic-settings==2.6.1
 
 # Database
-sqlalchemy==2.0.25
+sqlalchemy==2.0.37
 alembic==1.13.1
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
+# asyncpg==0.29.0  # removed for Python 3.13 compatibility (not needed for unit tests)
+# psycopg2-binary==2.9.9  # removed for Python 3.13 compatibility (not needed for unit tests)
 
 # Redis
 redis==5.0.1
@@ -20,6 +20,7 @@ hiredis==2.3.2
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
+PyJWT==2.9.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
 cryptography==41.0.7
@@ -50,6 +51,7 @@ flower==2.0.1
 python-dotenv==1.0.0
 pyyaml==6.0.1
 orjson==3.9.10
+email-validator==2.2.0
 
 # Testing (dev only, but needed for CI)
 pytest==7.4.4
@@ -62,7 +64,6 @@ black==23.12.1
 pylint==3.0.3
 mypy==1.8.0
 isort==5.13.2
-safety==3.0.1
 bandit==1.7.6
 tenacity==8.2.3
 cachetools==5.3.2

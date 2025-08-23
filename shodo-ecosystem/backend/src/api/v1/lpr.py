@@ -12,24 +12,24 @@ from fastapi.security import HTTPBearer
 from pydantic import BaseModel, Field, validator
 import structlog
 
-from ...services.auth.lpr_service import (
+from src.services.auth.lpr_service import (
     get_lpr_service,
     LPRScope,
     LPRPolicy,
     DeviceFingerprint,
 )
-from ...services.auth.visible_login import (
+from src.services.auth.visible_login import (
     visible_login_detector,
     secure_session_storage,
     LoginDetectionRule,
 )
-from ...services.audit.audit_logger import (
+from src.services.audit.audit_logger import (
     audit_logger,
     AuditEventType,
     AuditSeverity,
 )
-from ...middleware.auth import get_current_user
-from ...schemas.base import BaseResponse, error_response
+from src.middleware.auth import get_current_user
+from src.schemas.base import BaseResponse, error_response
 
 # 構造化ログ
 logger = structlog.get_logger()
@@ -599,3 +599,8 @@ async def get_audit_log(
     except Exception as e:
         logger.error("Failed to get audit log", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+# ここではエンドポイントのモック実装に留める
+@router.get("/status", response_model=BaseResponse[dict])
+async def lpr_status(user=Depends(get_current_user)):
+    return BaseResponse(success=True, data={"status": "ok"})

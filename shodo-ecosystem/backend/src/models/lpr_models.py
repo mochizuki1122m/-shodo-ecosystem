@@ -66,7 +66,7 @@ class LPRToken(Base):
     last_request_method = Column(String(10), nullable=True)
     
     # メタデータ
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     
@@ -206,7 +206,7 @@ class DeviceFingerprint(Base):
     user_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=True)  # 関連するユーザーID
     
     # メタデータ
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     
@@ -240,7 +240,7 @@ class RateLimitBucket(Base):
     rejected_requests = Column(Integer, default=0, nullable=False)
     
     # メタデータ
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), onupdate=func.now())
     
@@ -285,7 +285,7 @@ class LPRUsageLog(Base):
     correlation_id = Column(String(64), nullable=False, index=True)
     
     # メタデータ
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
     
     # リレーション
@@ -321,7 +321,7 @@ class LPRRevocationList(Base):
     notification_sent = Column(Boolean, default=False, nullable=False)
     
     # メタデータ
-    metadata = Column(JSONB, nullable=True)
+    extra_metadata = Column("metadata", JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=func.now())
     
     # インデックス

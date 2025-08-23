@@ -46,3 +46,10 @@ class ErrorResponse(BaseModel):
     detail: Optional[Any] = Field(default=None, description="詳細情報")
     status_code: int = Field(..., description="HTTPステータスコード")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="タイムスタンプ")
+
+class HealthCheck(BaseModel):
+    """ヘルスチェック用の簡易スキーマ"""
+    status: str = Field(..., description="overall/healthy/partial/degraded など")
+    version: Optional[str] = Field(default=None)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    services: Optional[dict] = None

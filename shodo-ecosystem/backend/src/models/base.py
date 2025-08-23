@@ -21,32 +21,37 @@ DATABASE_URL = os.getenv(
 # 同期用URL（マイグレーション用）
 SYNC_DATABASE_URL = DATABASE_URL.replace("+asyncpg", "")
 
-# エンジンの作成
-async_engine = create_async_engine(
-    DATABASE_URL,
-    echo=os.getenv("DEBUG", "false").lower() == "true",
-    pool_size=20,
-    max_overflow=40,
-    pool_pre_ping=True,
-)
+LIGHT = os.getenv("LIGHT_TESTS") == "1"
 
-sync_engine = create_engine(
-    SYNC_DATABASE_URL,
-    echo=os.getenv("DEBUG", "false").lower() == "true",
-)
+# エンジンの作成（軽量テスト時はスキップ）
+if not LIGHT:
+    async_engine = create_async_engine(
+        DATABASE_URL,
+        echo=os.getenv("DEBUG", "false").lower() == "true",
+        pool_size=20,
+        max_overflow=40,
+        pool_pre_ping=True,
+    )
+    sync_engine = create_engine(
+        SYNC_DATABASE_URL,
+        echo=os.getenv("DEBUG", "false").lower() == "true",
+    )
+else:
+    async_engine = None
+    sync_engine = None
 
-# セッションファクトリ
+# セッションファクトリ（軽量テスト時はダミー）
 AsyncSessionLocal = async_sessionmaker(
-    async_engine,
+    async_engine,  # type: ignore[arg-type]
     class_=AsyncSession,
     expire_on_commit=False,
-)
+) if not LIGHT else None
 
 SessionLocal = sessionmaker(
     sync_engine,
     autocommit=False,
     autoflush=False,
-)
+) if not LIGHT else None
 
 # メタデータ
 metadata = MetaData()
@@ -86,7 +91,13 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     非同期データベースセッションを取得
     """
-    async with AsyncSessionLocal() as session:
+    if LIGHT:
+        # ダミーの非同期ジェネレーター
+        async def _dummy():
+            yield None  # type: ignore[misc]
+        async for _ in _dummy():
+            return
+    async with AsyncSessionLocal() as session:  # type: ignore[func-returns-value]
         try:
             yield session
             await session.commit()
@@ -100,6 +111,8 @@ def get_sync_db() -> Session:
     """
     同期データベースセッションを取得（マイグレーション用）
     """
+    if LIGHT:
+        raise RuntimeError("Sync DB not available in LIGHT_TESTS mode")
     db = SessionLocal()
     try:
         yield db
@@ -114,7 +127,9 @@ async def init_db():
     """
     データベースの初期化
     """
-    async with async_engine.begin() as conn:
+    if LIGHT:
+        return
+    async with async_engine.begin() as conn:  # type: ignore[union-attr]
         # テーブルの作成
         await conn.run_sync(Base.metadata.create_all)
     
@@ -124,7 +139,9 @@ async def drop_db():
     """
     データベースの削除（開発用）
     """
-    async with async_engine.begin() as conn:
+    if LIGHT:
+        return
+    async with async_engine.begin() as conn:  # type: ignore[union-attr]
         await conn.run_sync(Base.metadata.drop_all)
     
     print("Database dropped successfully")

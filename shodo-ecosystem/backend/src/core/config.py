@@ -4,12 +4,20 @@
 """
 
 from typing import List, Optional, Dict
-from pydantic import BaseSettings, Field, SecretStr
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 import json
 
 class Settings(BaseSettings):
     """アプリケーション設定"""
+    
+    # pydantic v2 設定
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
     
     # 基本設定
     app_name: str = Field(default="Shodo Ecosystem", env="APP_NAME")
@@ -172,22 +180,16 @@ class Settings(BaseSettings):
             if self.secret_key.get_secret_value() == weak or self.jwt_secret_key.get_secret_value() == weak or self.encryption_key.get_secret_value() == weak:
                 raise ValueError("Default secrets must be overridden in production")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        
-        # 環境変数のリスト形式対応
-        @classmethod
-        def parse_env_var(cls, field_name: str, raw_val: str):
-            if field_name in ("cors_origins", "trusted_hosts", "csp_connect_src"):
-                return [x.strip() for x in raw_val.split(",")]
-            if field_name in ("rate_limit_endpoint_limits",):
-                try:
-                    return json.loads(raw_val)
-                except Exception:
-                    return {}
-            return raw_val
+    # 互換: 環境変数のリスト/JSON形式対応（v1のparse_env_varの代替）
+    @staticmethod
+    def _parse_env_list(raw_val: str) -> List[str]:
+        try:
+            data = json.loads(raw_val)
+            if isinstance(data, list):
+                return [str(x).strip() for x in data]
+        except Exception:
+            pass
+        return [x.strip() for x in str(raw_val).split(",") if x.strip()]
 
 @lru_cache()
 def get_settings() -> Settings:

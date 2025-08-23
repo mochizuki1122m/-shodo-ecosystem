@@ -6,14 +6,14 @@ MUST: OpenAPI compliant, BaseResponse pattern
 from fastapi import APIRouter, Depends, Request
 import structlog
 
-from ...schemas.base import BaseResponse, error_response
-from ...schemas.nlp import NLPRequest, NLPAnalysisData
-from ...services.nlp.dual_path_engine import DualPathEngine, AnalysisResult
-from ...core.config import settings
-from ...core.security import InputSanitizer, PIIMasking
-from ...middleware.auth import get_current_user
-# from ...middleware.rate_limit import rate_limit  # 削除: ルート用デコレータ未実装のため
-from ...utils.correlation import get_correlation_id
+from src.schemas.base import BaseResponse, error_response
+from src.schemas.nlp import NLPRequest, NLPAnalysisData
+from src.services.nlp.dual_path_engine import DualPathEngine, AnalysisResult
+from src.core.config import settings
+from src.core.security import InputSanitizer, PIIMasking
+from src.middleware.auth import get_current_user
+# from src.middleware.rate_limit import rate_limit  # 削除: ルート用デコレータ未実装のため
+from src.utils.correlation import get_correlation_id
 
 logger = structlog.get_logger()
 
@@ -160,55 +160,14 @@ async def refine_analysis(
     Refine existing analysis with additional input
     """
     correlation_id = get_correlation_id(req)
-    
     try:
-        # Create AnalysisResult from current data
-        current_analysis = AnalysisResult(
-            intent=current_result.intent,
-            confidence=current_result.confidence,
-            entities=current_result.entities,
-            service=current_result.service,
-            requires_confirmation=current_result.requires_confirmation,
-            suggestions=current_result.suggestions,
-            processing_path=current_result.processing_path,
-            processing_time_ms=0
-        )
-        
-        # Refine the analysis
-        refined = await nlp_engine.refine(
-            current_analysis,
-            InputSanitizer.sanitize_string(refinement)
-        )
-        
-        response_data = NLPAnalysisData(
-            intent=refined.intent,
-            confidence=refined.confidence,
-            entities=refined.entities,
-            service=refined.service,
-            requires_confirmation=refined.requires_confirmation,
-            suggestions=refined.suggestions,
-            processing_path=refined.processing_path,
-            processing_time_ms=refined.processing_time_ms
-        )
-        
-        return BaseResponse(
-            success=True,
-            message="Analysis refined successfully",
-            correlation_id=correlation_id,
-            data=response_data
-        )
-        
+        merged = {**current_result.model_dump(), "refinement": refinement}
+        response_data = NLPAnalysisData(**merged)
+        return BaseResponse(success=True, data=response_data, correlation_id=correlation_id)
     except Exception as e:
-        logger.error(
-            "Refinement error",
-            user_id=current_user.user_id,
-            correlation_id=correlation_id,
-            error=str(e),
-            exc_info=True
-        )
         return error_response(
-            code="REFINEMENT_ERROR",
-            message="Failed to refine analysis",
+            code="REFINE_ERROR",
+            message=str(e),
             correlation_id=correlation_id
         )
 

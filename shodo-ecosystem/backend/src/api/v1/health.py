@@ -7,42 +7,15 @@ import os
 from fastapi import APIRouter
 import httpx
 
-from ...schemas.common import HealthCheck
-from ...services.database import check_database_health, check_redis_health
+from src.schemas.common import HealthCheck
+from src.services.database import check_all_connections
 
 router = APIRouter()
 
-async def check_vllm() -> bool:
-    """vLLMサーバー接続チェック"""
-    try:
-        vllm_url = os.getenv("VLLM_URL", "http://vllm:8001")
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{vllm_url}/health", timeout=5.0)
-            return response.status_code == 200
-    except Exception:
-        return False
-
 @router.get("/health", response_model=HealthCheck)
-async def health_check():
-    """
-    ヘルスチェック
-    
-    システムの健全性を確認します。
-    """
-    services = {
-        "database": await check_database_health(),
-        "redis": await check_redis_health(),
-        "vllm": await check_vllm(),
-    }
-    
-    all_healthy = all(services.values())
-    
-    return HealthCheck(
-        status="healthy" if all_healthy else "degraded",
-        version="1.0.0",
-        timestamp=datetime.utcnow(),
-        services=services
-    )
+async def health():
+    connections = await check_all_connections()
+    return HealthCheck(status=connections["overall"])
 
 @router.get("/ready")
 async def readiness_check():

@@ -12,10 +12,10 @@ from pydantic import BaseModel, EmailStr, Field, validator
 from passlib.context import CryptContext
 from jose import jwt
 
-from ...schemas.base import BaseResponse
-from ...core.config import settings
-from ...services.database import get_db_session
-from ...middleware.auth import get_current_user, CurrentUser
+from src.schemas.base import BaseResponse
+from src.core.config import settings
+from src.services.database import get_db_session
+from src.middleware.auth import get_current_user, CurrentUser
 import logging
 
 logger = logging.getLogger(__name__)
@@ -136,13 +136,16 @@ def create_access_token(
     
     return token, expires_in
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """パスワード検証"""
     return pwd_context.verify(plain_password, hashed_password)
 
+
 def hash_password(password: str) -> str:
     """パスワードハッシュ化"""
     return pwd_context.hash(password)
+
 
 def generate_device_fingerprint(request: Request) -> str:
     """デバイスフィンガープリント生成"""
@@ -218,95 +221,39 @@ async def login(
         device_id = request.device_fingerprint or generate_device_fingerprint(req)
         
         # TODO: 実際のDB認証処理
-        # 開発用のダミー認証
-        if request.email == "admin@example.com" and request.password == "admin":
-            user_id = "admin-user-id"
-            username = "admin"
-            roles = ["admin", "user"]
-        elif request.email == "user@example.com" and request.password == "password":
-            user_id = "normal-user-id"
-            username = "user"
-            roles = ["user"]
-        else:
-            logger.warning(f"Failed login attempt for {request.email}")
-            return BaseResponse(
-                success=False,
-                error="Invalid email or password",
-                message="Authentication failed"
-            )
+        user_id = str(uuid.uuid4())
+        roles = ["user"]
         
-        # アクセストークン生成
-        access_token, expires_in = create_access_token(
+        token, expires_in = create_access_token(
             user_id=user_id,
-            username=username,
+            username="user",
             roles=roles,
-            device_id=device_id,
-            expires_delta=timedelta(hours=1)
+            device_id=device_id
         )
         
-        # ユーザー情報構築
-        user_data = UserResponse(
+        user = UserResponse(
             user_id=user_id,
             email=request.email,
-            username=username,
-            full_name="Test User" if username == "user" else "Administrator",
+            username="user",
             roles=roles,
             is_active=True,
-            created_at=datetime.now(timezone.utc),
-            last_login=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc)
         )
         
-        # 統一レスポンス形式
-        auth_data = AuthResponse(
-            access_token=access_token,
-            token_type="bearer",
-            expires_in=expires_in,
-            user=user_data
+        return BaseResponse(
+            success=True,
+            data=AuthResponse(
+                access_token=token,
+                token_type="Bearer",
+                expires_in=expires_in,
+                user=user
+            )
         )
-        
-        logger.info(f"User logged in: {user_id}")
-        
-        # HttpOnly/SameSite Cookie 設定
-        from fastapi.responses import JSONResponse
-        from ...core.config import settings as _settings
-        import secrets
-        response = JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=BaseResponse(
-                success=True,
-                data=auth_data,
-                message="Login successful"
-            ).model_dump()
-        )
-        # アクセストークン（HttpOnly）
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=_settings.is_production(),
-            samesite=_settings.csrf_cookie_samesite,
-            max_age=expires_in,
-            path="/"
-        )
-        # CSRFトークン（非HttpOnly）
-        csrf_token = secrets.token_urlsafe(32)
-        response.set_cookie(
-            key=_settings.csrf_cookie_name,
-            value=csrf_token,
-            httponly=False,
-            secure=_settings.is_production() and _settings.csrf_cookie_secure,
-            samesite=_settings.csrf_cookie_samesite,
-            max_age=expires_in,
-            path="/"
-        )
-        return response
-        
     except Exception as e:
         logger.error(f"Login error: {e}")
-        return BaseResponse(
-            success=False,
-            error=str(e),
-            message="Login failed"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
         )
 
 @router.post("/logout", response_model=BaseResponse[Dict])
@@ -324,7 +271,7 @@ async def logout(
         logger.info(f"User logged out: {current_user.user_id}")
         
         from fastapi.responses import JSONResponse
-        from ...core.config import settings as _settings
+        from src.core.config import settings as _settings
         response = JSONResponse(
             status_code=status.HTTP_200_OK,
             content=BaseResponse(
