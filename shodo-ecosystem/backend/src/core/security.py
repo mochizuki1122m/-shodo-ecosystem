@@ -306,6 +306,13 @@ class DataEncryption:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+def generate_api_key() -> str:
+    return SecureTokenGenerator.generate_api_key()
+
+def verify_api_key(api_key: str, key_hash: str) -> bool:
+    import hashlib
+    return hashlib.sha256(api_key.encode()).hexdigest() == key_hash
+
 # Export security utilities
 __all__ = [
 	'pwd_context',
@@ -315,5 +322,8 @@ __all__ = [
 	'PIIMasking',
 	'SecureTokenGenerator',
 	'JWTManager',
-	'DataEncryption'
+	'DataEncryption',
+	'get_password_hash',
+	'generate_api_key',
+	'verify_api_key'
 ]
