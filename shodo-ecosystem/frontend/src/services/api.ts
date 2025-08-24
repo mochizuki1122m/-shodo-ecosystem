@@ -47,6 +47,12 @@ apiClient.interceptors.response.use(
   }
 );
 
+// CSRF API
+export const fetchCsrf = async () => {
+  const response = await apiClient.get('/api/v1/auth/csrf');
+  return response.data.data || response.data;
+};
+
 // NLP API
 export const analyzeText = async (text: string) => {
   const response = await apiClient.post('/api/v1/nlp/analyze', { text });

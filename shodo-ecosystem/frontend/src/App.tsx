@@ -12,6 +12,7 @@ import NLPInput from './features/nlp/NLPInput';
 import PreviewEditor from './features/preview/PreviewEditor';
 import Login from './features/auth/Login';
 import ProtectedRoute from './components/ProtectedRoute';
+import { fetchCsrf } from './services/api';
 
 // Material-UIテーマ設定
 const theme = createTheme({
@@ -51,6 +52,10 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  React.useEffect(() => {
+    // 初期ロード時にCSRF Cookieを配布
+    fetchCsrf().catch(() => {/* noop */});
+  }, []);
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
