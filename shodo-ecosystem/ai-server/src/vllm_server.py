@@ -36,6 +36,23 @@ GPU_MEMORY_UTILIZATION = float(os.getenv("GPU_MEMORY_UTILIZATION", "0.95"))
 MAX_MODEL_LEN = int(os.getenv("MAX_MODEL_LEN", "128000"))
 
 app = FastAPI(title="vLLM Server for Shodo Ecosystem")
+# Prometheus metrics
+try:
+    from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
+    REQUEST_COUNTER = Counter(
+        'ai_server_http_requests_total',
+        'Total number of HTTP requests',
+        ['method', 'route', 'status']
+    )
+    TOKENS_COUNTER = Counter(
+        'ai_server_inference_tokens_total',
+        'Total tokens processed by inference',
+        ['engine', 'type']
+    )
+    PROM_AVAILABLE = True
+except Exception:
+    PROM_AVAILABLE = False
+
 
 # CORS設定
 app.add_middleware(
@@ -133,6 +150,17 @@ async def startup_event():
         logger.info("Using mock LLM engine for development")
         llm_engine = MockLLMEngine()
 
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    response = await call_next(request)
+    try:
+        if PROM_AVAILABLE:
+            route = request.url.path
+            REQUEST_COUNTER.labels(method=request.method, route=route, status=response.status_code).inc()
+    except Exception:
+        pass
+    return response
+
 @app.get("/health")
 async def health_check():
     """ヘルスチェックエンドポイント"""
@@ -142,6 +170,14 @@ async def health_check():
         "vllm_available": VLLM_AVAILABLE,
         "quantization": QUANTIZATION
     }
+
+@app.get("/metrics")
+async def metrics():
+    if not PROM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Prometheus not available")
+    data = generate_latest()  # type: ignore
+    from fastapi.responses import Response
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)  # type: ignore
 
 @app.get("/v1/models")
 async def list_models():

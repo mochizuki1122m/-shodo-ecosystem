@@ -24,40 +24,33 @@ const initialState: AuthState = {
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }: { email: string; password: string }) => {
-    // フロントの共通クライアントを直接使用
+    // Cookieベース: withCredentialsを付与
     const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok || !data?.success) {
       throw new Error(data?.error || 'Login failed');
     }
-    // トークン保存はlocalStorageで一元管理
-    const access = data.data?.access_token || data.access_token;
-    const refresh = data.data?.refresh_token || data.refresh_token;
-    if (access) localStorage.setItem('access_token', access);
-    if (refresh) localStorage.setItem('refresh_token', refresh);
     return data.data?.user || data.user;
   }
 );
 
 export const logout = createAsyncThunk('auth/logout', async () => {
   try {
-    await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/logout`, { method: 'POST' });
+    await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
   } finally {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    // Cookieベース運用のためストレージ操作不要
   }
 });
 
 export const fetchCurrentUser = createAsyncThunk('auth/fetchCurrentUser', async () => {
   const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost'}/api/v1/auth/me`, {
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
   });
   const data = await res.json();
   if (!res.ok || !data?.success) {

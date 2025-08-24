@@ -35,7 +35,7 @@ function getCookie(name: string): string | null {
 
 class ApiClient {
   private client: AxiosInstance;
-  private refreshingToken: Promise<string> | null = null;
+  private refreshingToken: Promise<boolean> | null = null;
 
   constructor() {
     const baseURL = process.env.REACT_APP_API_URL || 'http://localhost/api';
@@ -56,12 +56,7 @@ class ApiClient {
     // リクエストインターセプター
     this.client.interceptors.request.use(
       (config) => {
-        // CookieベースのためAuthorizationヘッダは任意（下位互換で残す）
-        const token = localStorage.getItem('access_token');
-        if (token) {
-          (config.headers as any).Authorization = `Bearer ${token}`;
-        }
-        // CSRFヘッダ付与
+        // CSRFヘッダ付与（Double Submit Cookie）
         const csrf = getCookie('csrf_token');
         if (csrf) {
           (config.headers as any)['X-CSRF-Token'] = csrf;
@@ -83,15 +78,13 @@ class ApiClient {
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
           try {
-            const newToken = await this.refreshToken();
-            if (newToken && originalRequest.headers) {
-              (originalRequest.headers as any).Authorization = `Bearer ${newToken}`;
+            const refreshed = await this.refreshToken();
+            if (refreshed) {
+              // Cookieベースなのでヘッダ更新不要。元リクエストを再試行。
               return this.client(originalRequest);
             }
           } catch (refreshError) {
             // リフレッシュ失敗時はログアウト扱い
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
             window.location.href = '/login';
             return Promise.reject(refreshError);
           }
@@ -119,25 +112,16 @@ class ApiClient {
     return 'An unexpected error occurred';
   }
 
-  private async refreshToken(): Promise<string> {
+  private async refreshToken(): Promise<boolean> {
     if (this.refreshingToken) {
       return this.refreshingToken;
     }
 
     this.refreshingToken = new Promise(async (resolve, reject) => {
       try {
-        // Cookieベースのためbody不要でも可。互換のため残す
-        const refreshToken = localStorage.getItem('refresh_token');
-        const response = await this.client.post('/auth/refresh', refreshToken ? { refresh_token: refreshToken } : {});
-        const newToken: string | undefined = (response.data?.data?.access_token) || response.data?.access_token;
-        const newRefresh: string | undefined = (response.data?.data?.refresh_token) || response.data?.refresh_token;
-        if (newToken) {
-          localStorage.setItem('access_token', newToken);
-        }
-        if (newRefresh) {
-          localStorage.setItem('refresh_token', newRefresh);
-        }
-        resolve(newToken || '');
+        // Cookieベースのためボディ不要。成功時はサーバ側でCookieを更新。
+        await this.client.post('/auth/refresh', {});
+        resolve(true);
       } catch (err) {
         reject(err);
       } finally {
