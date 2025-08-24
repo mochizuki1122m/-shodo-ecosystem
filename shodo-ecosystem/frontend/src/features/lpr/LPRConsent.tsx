@@ -208,6 +208,7 @@ export const LPRConsentDialog: React.FC<LPRConsentProps> = ({
           borderRadius: 2,
         },
       }}
+      data-testid="lpr-consent"
     >
       <DialogTitle sx={{ pb: 1 }}>
         <Box display="flex" alignItems="center" gap={1}>
@@ -457,6 +458,7 @@ export const LPRConsentDialog: React.FC<LPRConsentProps> = ({
                 checked={consentChecked}
                 onChange={(e) => setConsentChecked(e.target.checked)}
                 color="primary"
+                inputProps={{ 'data-testid': 'consent-checkbox' }}
               />
             }
             label={
@@ -477,6 +479,7 @@ export const LPRConsentDialog: React.FC<LPRConsentProps> = ({
           variant="contained"
           disabled={!consentChecked || selectedScopes.size === 0}
           startIcon={<SecurityIcon />}
+          data-testid="grant-access"
         >
           権限を付与
         </Button>

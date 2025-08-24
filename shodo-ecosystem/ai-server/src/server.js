@@ -3,6 +3,8 @@ import cors from '@fastify/cors';
 import { Ollama } from 'ollama';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { createHash, randomUUID } from 'crypto';
+import client from 'prom-client';
 
 dotenv.config();
 
@@ -34,6 +36,64 @@ await fastify.register(cors, {
     cb(null, true);
   },
   credentials: true,
+});
+
+// ===== Correlation ID middleware =====
+fastify.addHook('onRequest', async (request, reply) => {
+  let cid = request.headers['x-correlation-id'];
+  if (!cid) cid = randomUUID();
+  request.headers['x-correlation-id'] = cid;
+  reply.header('X-Correlation-ID', cid);
+});
+
+// ===== Simple in-memory rate limit (per IP) =====
+const RATE_LIMIT_RPM = Number(process.env.RATE_LIMIT_RPM || 120);
+const rateStore = new Map(); // key -> { count, reset }
+fastify.addHook('onRequest', async (request, reply) => {
+  if (RATE_LIMIT_RPM <= 0) return;
+  const ip = (request.headers['x-forwarded-for'] || request.ip || 'unknown').toString().split(',')[0].trim();
+  const now = Date.now();
+  const key = ip;
+  let entry = rateStore.get(key);
+  if (!entry || now > entry.reset) {
+    entry = { count: 0, reset: now + 60_000 };
+    rateStore.set(key, entry);
+  }
+  entry.count += 1;
+  if (entry.count > RATE_LIMIT_RPM) {
+    const retryAfter = Math.ceil((entry.reset - now) / 1000);
+    reply.header('Retry-After', retryAfter.toString());
+    reply.header('X-RateLimit-Limit', RATE_LIMIT_RPM.toString());
+    reply.header('X-RateLimit-Remaining', '0');
+    reply.header('X-RateLimit-Reset', Math.floor(entry.reset / 1000).toString());
+    return reply.code(429).send({ error: 'rate_limited', message: 'Too many requests' });
+  }
+  reply.header('X-RateLimit-Limit', RATE_LIMIT_RPM.toString());
+  reply.header('X-RateLimit-Remaining', Math.max(0, RATE_LIMIT_RPM - entry.count).toString());
+});
+
+// ===== Prometheus metrics =====
+client.collectDefaultMetrics();
+const httpRequestCounter = new client.Counter({
+  name: 'ai_server_http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status']
+});
+const inferenceTokens = new client.Counter({
+  name: 'ai_server_inference_tokens_total',
+  help: 'Total tokens processed by inference',
+  labelNames: ['engine', 'type']
+});
+
+fastify.addHook('onResponse', async (request, reply) => {
+  try {
+    httpRequestCounter.inc({ method: request.method, route: request.routerPath || request.url, status: reply.statusCode });
+  } catch {}
+});
+
+fastify.get('/metrics', async (request, reply) => {
+  reply.header('Content-Type', await client.register.contentType);
+  return client.register.metrics();
 });
 
 // 推論エンジンの選択
@@ -101,12 +161,14 @@ fastify.post('/v1/completions', async (request, reply) => {
       reply.raw.setHeader('Connection', 'keep-alive');
 
       for await (const part of response) {
+        inferenceTokens.inc({ engine: 'ollama', type: 'completion' }, (part?.response || '').split(' ').length || 0);
         reply.raw.write(`data: ${JSON.stringify({
           choices: [{ text: part.response, index: 0 }],
         })}\n\n`);
       }
       reply.raw.end();
     } else {
+      inferenceTokens.inc({ engine: 'ollama', type: 'completion' }, (prompt.split(' ').length || 0) + ((response.response || '').split(' ').length || 0));
       return {
         id: `cmpl-${Date.now()}`,
         object: 'text_completion',
@@ -134,6 +196,8 @@ fastify.post('/v1/completions', async (request, reply) => {
       temperature,
       stream,
     });
+    // usage計測（概算）
+    inferenceTokens.inc({ engine: 'vllm', type: 'completion' }, (prompt.split(' ').length || 0));
     return completion;
   }
 });
@@ -162,6 +226,7 @@ fastify.post('/v1/chat/completions', async (request, reply) => {
       reply.raw.setHeader('Connection', 'keep-alive');
 
       for await (const part of response) {
+        inferenceTokens.inc({ engine: 'ollama', type: 'chat' }, (part?.message?.content || '').split(' ').length || 0);
         reply.raw.write(`data: ${JSON.stringify({
           choices: [{
             delta: { content: part.message.content },
@@ -172,6 +237,7 @@ fastify.post('/v1/chat/completions', async (request, reply) => {
       reply.raw.write('data: [DONE]\n\n');
       reply.raw.end();
     } else {
+      inferenceTokens.inc({ engine: 'ollama', type: 'chat' }, (prompt.split(' ').length || 0));
       return {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -201,6 +267,7 @@ fastify.post('/v1/chat/completions', async (request, reply) => {
       temperature,
       stream,
     });
+    inferenceTokens.inc({ engine: 'vllm', type: 'chat' }, (prompt.split(' ').length || 0));
     return completion;
   }
 });
@@ -209,15 +276,7 @@ fastify.post('/v1/chat/completions', async (request, reply) => {
 fastify.post('/v1/analyze', async (request, reply) => {
   const { text, context = {} } = request.body;
 
-  const systemPrompt = `あなたは日本語の自然言語を解析し、ユーザーの意図を理解するAIアシスタントです。
-以下の形式でJSONを返してください：
-{
-  "intent": "操作の意図",
-  "confidence": 0.0-1.0の確信度,
-  "entities": { 抽出されたエンティティ },
-  "service": "対象サービス（shopify/gmail/stripe等）",
-  "suggestions": ["曖昧な場合の明確化質問"]
-}`;
+  const systemPrompt = `あなたは日本語の自然言語を解析し、ユーザーの意図を理解するAIアシスタントです。\n以下の形式でJSONを返してください：\n{\n  "intent": "操作の意図",\n  "confidence": 0.0-1.0の確信度,\n  "entities": { 抽出されたエンティティ },\n  "service": "対象サービス（shopify/gmail/stripe等）",\n  "suggestions": ["曖昧な場合の明確化質問"]\n}`;
 
   const userPrompt = `ユーザー入力: ${text}\nコンテキスト: ${JSON.stringify(context)}`;
 
@@ -233,6 +292,7 @@ fastify.post('/v1/analyze', async (request, reply) => {
           num_predict: 1024,
         },
       });
+      inferenceTokens.inc({ engine: 'ollama', type: 'analyze' }, (String(text || '').split(' ').length || 0));
       return JSON.parse(response.response);
     } else {
       const completion = await vllm.completions.create({
@@ -241,6 +301,7 @@ fastify.post('/v1/analyze', async (request, reply) => {
         max_tokens: 1024,
         temperature: 0.3,
       });
+      inferenceTokens.inc({ engine: 'vllm', type: 'analyze' }, (String(text || '').split(' ').length || 0));
       return JSON.parse(completion.choices[0].text);
     }
   } catch (error) {
@@ -265,6 +326,7 @@ fastify.post('/v1/embeddings', async (request, reply) => {
       model,
       prompt: input,
     });
+    inferenceTokens.inc({ engine: 'ollama', type: 'embeddings' }, (String(input || '').split(' ').length || 0));
     return {
       object: 'list',
       data: [{

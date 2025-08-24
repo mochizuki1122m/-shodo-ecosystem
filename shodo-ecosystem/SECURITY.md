@@ -17,3 +17,9 @@
 ## Scope
 - バックエンドAPI、AIサーバ、フロントエンド、インフラ構成（Docker/K8s/監視）
 - サードパーティ依存性は最小化し、継続的に監査します
+
+## CORS/CSP 運用指針
+- 本番: `TrustedHostMiddleware`でFQDNを限定し、CORSは`CORS_ORIGINS`で必要最小限のオリジンのみ許可。ワイルドカード禁止。
+- 開発: `localhost`系のみ許容。デバッグ用途で一時的なワイルドカードを用いる場合はコミットしない。
+- CSP: 既定は厳格（`default-src 'self'`）。外部接続が必要な場合は`connect-src`に限定的に追加。`script-src`の`'unsafe-inline'`禁止。必要に応じてサブリソースのハッシュ/nonceを採用。
+- AIサーバ: `ALLOWED_ORIGINS`で本番許容オリジンを列挙。SSE利用時も同一の方針を遵守。
