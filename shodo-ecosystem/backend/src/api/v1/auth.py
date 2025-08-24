@@ -241,7 +241,7 @@ async def login(
             username=username,
             roles=roles,
             device_id=device_id,
-            expires_delta=timedelta(hours=1)
+            expires_delta=timedelta(minutes=30)
         )
         
         # ユーザー情報構築
@@ -287,6 +287,17 @@ async def login(
             samesite=_settings.csrf_cookie_samesite,
             max_age=expires_in,
             path="/"
+        )
+        # リフレッシュトークン雛形（未実装のためダミー）。将来RS256/長寿命/Rotatingを実装。
+        dummy_refresh = secrets.token_urlsafe(48)
+        response.set_cookie(
+            key="refresh_token",
+            value=dummy_refresh,
+            httponly=True,
+            secure=_settings.is_production(),
+            samesite=_settings.csrf_cookie_samesite,
+            max_age=14 * 24 * 3600,
+            path="/api/v1/auth"
         )
         # CSRFトークン（非HttpOnly）
         csrf_token = secrets.token_urlsafe(32)
@@ -408,3 +419,33 @@ async def verify_token(
         },
         message="Token is valid"
     )
+
+@router.get("/csrf", response_model=BaseResponse[Dict])
+async def issue_csrf_token():
+    """
+    CSRFトークン発行エンドポイント
+    - Double Submit Cookie 用トークンをCookieに設定
+    - クライアントはヘッダ X-CSRF-Token に同値を送信
+    """
+    from fastapi.responses import JSONResponse
+    import secrets
+
+    token = secrets.token_urlsafe(32)
+
+    response = JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=BaseResponse(
+            success=True,
+            data={"csrf_token": token},
+            message="CSRF token issued"
+        ).model_dump()
+    )
+    response.set_cookie(
+        key=settings.csrf_cookie_name,
+        value=token,
+        httponly=False,
+        secure=settings.is_production() and settings.csrf_cookie_secure,
+        samesite=settings.csrf_cookie_samesite,
+        path="/"
+    )
+    return response

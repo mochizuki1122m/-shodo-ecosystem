@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost') + '/v1';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost');
 
 // Axiosインスタンスの作成
 const apiClient = axios.create({
@@ -8,20 +8,30 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// リクエストインターセプター（認証トークンの追加）
+function getCookie(name: string): string | null {
+  const match = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith(name + '='));
+  return match ? decodeURIComponent(match.split('=')[1]) : null;
+}
+
+// リクエストインターセプター（認証トークン/CSRFトークンの追加）
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const csrfCookieName = (process.env.REACT_APP_CSRF_COOKIE_NAME || 'csrf_token');
+    const csrfHeaderName = (process.env.REACT_APP_CSRF_HEADER_NAME || 'X-CSRF-Token');
+    const csrfToken = getCookie(csrfCookieName);
+    if (csrfToken) {
+      (config.headers as any)[csrfHeaderName] = csrfToken;
+    }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // レスポンスインターセプター（エラーハンドリング）
@@ -36,6 +46,12 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// CSRF API
+export const fetchCsrf = async () => {
+  const response = await apiClient.get('/api/v1/auth/csrf');
+  return response.data.data || response.data;
+};
 
 // NLP API
 export const analyzeText = async (text: string) => {

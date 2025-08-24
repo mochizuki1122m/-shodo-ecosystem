@@ -137,39 +137,16 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
         user_id = verification.get("user_id")
         service = verification.get("service")
         
-        # Check rate limits
-        if not await self._check_rate_limit(jti, request):
-            logger.warning(
-                "LPR rate limit exceeded",
-                jti=jti,
-                user_id=user_id,
-                path=request.url.path,
-                correlation_id=correlation_id
-            )
-            return JSONResponse(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={
-                    "error": "RATE_LIMIT_EXCEEDED",
-                    "message": "Too many requests",
-                    "correlation_id": correlation_id
-                },
-                headers={
-                    "X-RateLimit-Limit": "100",
-                    "X-RateLimit-Remaining": "0",
-                    "X-RateLimit-Reset": str(int(time.time()) + 60)
-                }
-            )
+        # Store LPR context in request state for downstream middlewares (e.g., RateLimit)
+        request.state.lpr_jti = jti
+        request.state.lpr_user_id = user_id
+        request.state.lpr_service = service
+        request.state.correlation_id = correlation_id
         
         # Add human speed jitter (if enabled)
         if await self._should_add_jitter(jti):
             jitter_ms = random.randint(50, 200)
             await self._async_sleep(jitter_ms / 1000)
-        
-        # Store LPR context in request state
-        request.state.lpr_jti = jti
-        request.state.lpr_user_id = user_id
-        request.state.lpr_service = service
-        request.state.correlation_id = correlation_id
         
         # Log the operation start
         start_time = time.time()

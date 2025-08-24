@@ -163,7 +163,10 @@ app.add_middleware(
     allowed_hosts=["*"] if settings.debug else settings.trusted_hosts
 )
 
-# レート制限ミドルウェア（最初に適用）
+# LPRエンフォーサーミドルウェア（認可と検証を先に実施し、JTI/相関IDをstateに格納）
+app.add_middleware(LPREnforcerMiddleware)
+
+# レート制限ミドルウェア（LPR検証後、LPR JTI/ユーザーIDをキーに活用）
 app.add_middleware(RateLimitMiddleware)
 
 # セキュリティヘッダー
@@ -172,9 +175,6 @@ app.add_middleware(SecurityHeadersMiddleware)
 # CSRFミドルウェア（Cookieベース認証用）
 from .middleware.csrf import CSRFMiddleware
 app.add_middleware(CSRFMiddleware)
-
-# LPRエンフォーサーミドルウェア
-app.add_middleware(LPREnforcerMiddleware)
 
 # カスタムエラーハンドラー
 @app.exception_handler(Exception)
