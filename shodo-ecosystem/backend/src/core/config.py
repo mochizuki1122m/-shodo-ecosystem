@@ -4,7 +4,8 @@
 """
 
 from typing import List, Optional, Dict
-from pydantic import BaseSettings, Field, SecretStr
+from pydantic_settings import BaseSettings
+from pydantic import Field, SecretStr
 from functools import lru_cache
 import json
 
