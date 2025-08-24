@@ -8,6 +8,8 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 import uuid
+import time
+import asyncio
 
 from jose import jwt, JWTError
 from cryptography.hazmat.primitives import serialization
@@ -16,6 +18,7 @@ from cryptography.hazmat.backends import default_backend
 import structlog
 
 from ...core.config import settings
+from ...services.database import get_redis
 
 
 logger = structlog.get_logger()
@@ -107,7 +110,74 @@ class LPRService:
         self.public_key = None
         self.kid = None
         self._initialize_keys()
+        # Memory fallback stores
+        self._memory_tokens: Dict[str, Dict[str, Any]] = {}
+        self._user_tokens: Dict[str, set] = {}
+        self._revoked_jtis: Dict[str, float] = {}  # jti -> expiry ts
+        self._last_cleanup_ts: float = time.time()
+        self._last_redis_retry_ts: float = 0.0
+        self._redis_retry_interval_sec: int = 60
     
+    def _now_ts(self) -> float:
+        return time.time()
+
+    async def _ensure_redis_connection(self) -> bool:
+        """Attempt to (re)acquire Redis connection lazily."""
+        if self.redis is not None:
+            return True
+        now = self._now_ts()
+        if now - self._last_redis_retry_ts < self._redis_retry_interval_sec:
+            return False
+        self._last_redis_retry_ts = now
+        try:
+            self.redis = get_redis()
+            if self.redis:
+                logger.info("Redis connection re-established for LPR service")
+                # Optionally flush memory revocations into Redis with remaining TTL
+                await self._flush_memory_revocations_to_redis()
+                return True
+        except Exception as e:
+            logger.debug("Redis reconnection attempt failed", error=str(e))
+        return False
+
+    async def _flush_memory_revocations_to_redis(self):
+        if not self.redis:
+            return
+        now = self._now_ts()
+        for jti, exp_ts in list(self._revoked_jtis.items()):
+            ttl = int(max(0, exp_ts - now))
+            if ttl <= 0:
+                del self._revoked_jtis[jti]
+                continue
+            try:
+                await self.redis.setex(
+                    f"lpr:revoked:{jti}",
+                    ttl,
+                    json.dumps({"revoked_at": datetime.now(timezone.utc).isoformat(), "reason": "memory_sync"})
+                )
+            except Exception as e:
+                logger.debug("Failed to push memory revocation to Redis", jti=jti, error=str(e))
+
+    def _cleanup_memory(self):
+        now = self._now_ts()
+        # Run at most once per 60 seconds
+        if now - self._last_cleanup_ts < 60:
+            return
+        self._last_cleanup_ts = now
+        # Tokens
+        for jti, meta in list(self._memory_tokens.items()):
+            exp_iso = meta.get("expires_at")
+            try:
+                exp_dt = datetime.fromisoformat(exp_iso) if isinstance(exp_iso, str) else None
+            except Exception:
+                exp_dt = None
+            if exp_dt and exp_dt < datetime.now(timezone.utc):
+                del self._memory_tokens[jti]
+        # Revocations
+        for jti, exp_ts in list(self._revoked_jtis.items()):
+            if exp_ts <= now:
+                del self._revoked_jtis[jti]
+
     def _initialize_keys(self):
         """Initialize RSA key pair for JWT signing"""
         # In production, load from Vault/KMS
@@ -206,24 +276,31 @@ class LPRService:
         )
         
         # Store token metadata in Redis for tracking
-        if self.redis:
-            token_meta = {
-                "jti": jti,
-                "user_id": user_id,
-                "service": service,
-                "issued_at": now.isoformat(),
-                "expires_at": exp.isoformat(),
-                "device_fingerprint_hash": device_fingerprint.generate_hash(),
-                "revoked": False
-            }
-            await self.redis.setex(
-                f"lpr:token:{jti}",
-                3600,  # 1 hour TTL
-                json.dumps(token_meta)
-            )
-            
-            # Add to user's token list
-            await self.redis.sadd(f"lpr:user:{user_id}:tokens", jti)
+        token_meta = {
+            "jti": jti,
+            "user_id": user_id,
+            "service": service,
+            "issued_at": now.isoformat(),
+            "expires_at": exp.isoformat(),
+            "device_fingerprint_hash": device_fingerprint.generate_hash(),
+            "revoked": False
+        }
+        if self.redis or await self._ensure_redis_connection():
+            try:
+                await self.redis.setex(
+                    f"lpr:token:{jti}",
+                    3600,  # 1 hour TTL
+                    json.dumps(token_meta)
+                )
+                await self.redis.sadd(f"lpr:user:{user_id}:tokens", jti)
+            except Exception as e:
+                logger.warning("Redis error storing token meta, falling back to memory", error=str(e))
+                self._memory_tokens[jti] = token_meta
+                self._user_tokens.setdefault(user_id, set()).add(jti)
+        else:
+            # Memory fallback
+            self._memory_tokens[jti] = token_meta
+            self._user_tokens.setdefault(user_id, set()).add(jti)
         
         # Audit log
         logger.info(
@@ -272,12 +349,24 @@ class LPRService:
             jti = claims.get("jti")
             
             # Check revocation
-            if self.redis:
-                token_meta = await self.redis.get(f"lpr:token:{jti}")
-                if token_meta:
-                    meta = json.loads(token_meta)
-                    if meta.get("revoked"):
-                        raise JWTError("Token has been revoked")
+            revoked = False
+            if self.redis or await self._ensure_redis_connection():
+                try:
+                    token_meta = await self.redis.get(f"lpr:token:{jti}")
+                    if token_meta:
+                        meta = json.loads(token_meta)
+                        if meta.get("revoked"):
+                            revoked = True
+                except Exception as e:
+                    logger.warning("Redis error during verify, falling back to memory", error=str(e))
+            # Memory fallback revocation check
+            now_ts = self._now_ts()
+            if not self.redis or revoked is False:
+                exp_ts = self._revoked_jtis.get(jti)
+                if exp_ts and exp_ts > now_ts:
+                    revoked = True
+            if revoked:
+                raise JWTError("Token has been revoked")
             
             # Verify device fingerprint if provided
             if device_fingerprint:
@@ -300,12 +389,15 @@ class LPRService:
                     raise JWTError("Insufficient scope")
             
             # Update last used timestamp
-            if self.redis:
-                await self.redis.hset(
-                    f"lpr:token:{jti}:usage",
-                    "last_used",
-                    datetime.now(timezone.utc).isoformat()
-                )
+            if self.redis or await self._ensure_redis_connection():
+                try:
+                    await self.redis.hset(
+                        f"lpr:token:{jti}:usage",
+                        "last_used",
+                        datetime.now(timezone.utc).isoformat()
+                    )
+                except Exception:
+                    pass
             
             return {
                 "valid": True,
@@ -339,41 +431,45 @@ class LPRService:
         Adds JTI to blacklist with TTL
         """
         
-        if not self.redis:
-            logger.warning("Redis not available for token revocation")
-            return False
-        
-        # Mark token as revoked
-        token_meta = await self.redis.get(f"lpr:token:{jti}")
-        if token_meta:
-            meta = json.loads(token_meta)
+        # Try Redis first
+        if self.redis or await self._ensure_redis_connection():
+            try:
+                token_meta = await self.redis.get(f"lpr:token:{jti}")
+                if token_meta:
+                    meta = json.loads(token_meta)
+                    meta["revoked"] = True
+                    meta["revoked_at"] = datetime.now(timezone.utc).isoformat()
+                    meta["revocation_reason"] = reason
+                    ttl = await self.redis.ttl(f"lpr:token:{jti}")
+                    if ttl > 0:
+                        await self.redis.setex(
+                            f"lpr:token:{jti}", ttl, json.dumps(meta)
+                        )
+                await self.redis.setex(
+                    f"lpr:revoked:{jti}",
+                    3600,
+                    json.dumps({
+                        "revoked_at": datetime.now(timezone.utc).isoformat(),
+                        "reason": reason,
+                        "user_id": user_id
+                    })
+                )
+                if user_id:
+                    await self.redis.srem(f"lpr:user:{user_id}:tokens", jti)
+            except Exception as e:
+                logger.warning("Redis error during revocation, using memory fallback", error=str(e))
+                # Memory fallback below
+                pass
+        # Memory fallback
+        now = self._now_ts()
+        self._revoked_jtis[jti] = now + 3600
+        meta = self._memory_tokens.get(jti)
+        if meta:
             meta["revoked"] = True
             meta["revoked_at"] = datetime.now(timezone.utc).isoformat()
             meta["revocation_reason"] = reason
-            
-            # Update with remaining TTL
-            ttl = await self.redis.ttl(f"lpr:token:{jti}")
-            if ttl > 0:
-                await self.redis.setex(
-                    f"lpr:token:{jti}",
-                    ttl,
-                    json.dumps(meta)
-                )
-        
-        # Add to revocation list
-        await self.redis.setex(
-            f"lpr:revoked:{jti}",
-            3600,  # Keep for 1 hour
-            json.dumps({
-                "revoked_at": datetime.now(timezone.utc).isoformat(),
-                "reason": reason,
-                "user_id": user_id
-            })
-        )
-        
-        # Remove from user's active tokens
-        if user_id:
-            await self.redis.srem(f"lpr:user:{user_id}:tokens", jti)
+        if user_id and user_id in self._user_tokens:
+            self._user_tokens[user_id].discard(jti)
         
         logger.info(
             "LPR token revoked",
@@ -387,20 +483,23 @@ class LPRService:
     async def list_user_tokens(self, user_id: str) -> List[Dict]:
         """List all active tokens for a user"""
         
-        if not self.redis:
-            return []
-        
-        # Get user's token JTIs
-        jtis = await self.redis.smembers(f"lpr:user:{user_id}:tokens")
-        
-        tokens = []
-        for jti in jtis:
-            token_meta = await self.redis.get(f"lpr:token:{jti}")
-            if token_meta:
-                meta = json.loads(token_meta)
-                if not meta.get("revoked"):
-                    tokens.append(meta)
-        
+        tokens: List[Dict] = []
+        if self.redis or await self._ensure_redis_connection():
+            try:
+                jtis = await self.redis.smembers(f"lpr:user:{user_id}:tokens")
+                for jti in jtis:
+                    token_meta = await self.redis.get(f"lpr:token:{jti}")
+                    if token_meta:
+                        meta = json.loads(token_meta)
+                        if not meta.get("revoked"):
+                            tokens.append(meta)
+            except Exception:
+                pass
+        # Merge memory fallback
+        for jti in self._user_tokens.get(user_id, set()):
+            meta = self._memory_tokens.get(jti)
+            if meta and not meta.get("revoked"):
+                tokens.append(meta)
         return tokens
     
     async def revoke_all_user_tokens(self, user_id: str, reason: str = None) -> int:
@@ -443,29 +542,31 @@ class LPRService:
     async def cleanup_expired_tokens(self) -> int:
         """Clean up expired tokens (batch job)"""
         
-        if not self.redis:
-            return 0
-        
-        # Redis TTL handles expiration automatically
-        # This is for additional cleanup if needed
-        
+        # Redis TTL handles expiration automatically; cleanup memory fallback
+        self._cleanup_memory()
         logger.info("LPR token cleanup completed")
         return 0
-
+    
     async def get_token_status(self, jti: str) -> Dict[str, Any]:
         """Get token status and metadata by JTI"""
         status = {
             "status": "unknown",
         }
-        if not self.redis:
-            return status
-        meta_json = await self.redis.get(f"lpr:token:{jti}")
-        if not meta_json:
+        meta = None
+        if self.redis or await self._ensure_redis_connection():
+            try:
+                meta_json = await self.redis.get(f"lpr:token:{jti}")
+                if meta_json:
+                    meta = json.loads(meta_json)
+            except Exception:
+                meta = None
+        if meta is None:
+            meta = self._memory_tokens.get(jti)
+        if not meta:
             status["status"] = "not_found"
             return status
-        meta = json.loads(meta_json)
         # Determine status by revocation and expiry
-        revoked = meta.get("revoked", False)
+        revoked = meta.get("revoked", False) or (jti in self._revoked_jtis and self._revoked_jtis[jti] > self._now_ts())
         expires_at = meta.get("expires_at")
         status.update({
             "issued_at": meta.get("issued_at"),
@@ -494,7 +595,7 @@ async def get_lpr_service() -> LPRService:
     global lpr_service
     if lpr_service is None:
         # Initialize with Redis from app context
-        from ...services.database import get_redis
+        # from ...services.database import get_redis # This line is removed as per the edit hint
         redis = get_redis()  # Synchronous function, no await needed
         lpr_service = LPRService(redis)
     return lpr_service
