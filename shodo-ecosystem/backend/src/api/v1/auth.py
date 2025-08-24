@@ -16,6 +16,8 @@ from ...schemas.base import BaseResponse
 from ...core.config import settings
 from ...services.database import get_db_session
 from ...middleware.auth import get_current_user, CurrentUser
+from ...services.auth.refresh_manager import RefreshTokenManager
+import secrets
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,10 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int  # 秒単位
     refresh_token: Optional[str] = None  # 将来の実装用
+
+class RefreshRequest(BaseModel):
+    """リフレッシュ用ボディ（OpenAPI整合）。Cookie優先で、未設定時に参照。"""
+    refresh_token: Optional[str] = None
     
 class UserResponse(BaseModel):
     """ユーザー情報レスポンス"""
@@ -269,7 +275,18 @@ async def login(
         # HttpOnly/SameSite Cookie 設定
         from fastapi.responses import JSONResponse
         from ...core.config import settings as _settings
-        import secrets
+        refresh_mgr = RefreshTokenManager()
+        # リフレッシュトークンを発行（Redis必須。開発ではRedis無しならCookie未設定）
+        refresh_token_value = None
+        try:
+            refresh_token_value = await refresh_mgr.generate(
+                user_id=user_id,
+                username=username,
+                roles=roles,
+                device_id=device_id,
+            )
+        except Exception as e:
+            logger.warning(f"Refresh token generation skipped: {e}")
         response = JSONResponse(
             status_code=status.HTTP_200_OK,
             content=BaseResponse(
@@ -288,17 +305,17 @@ async def login(
             max_age=expires_in,
             path="/"
         )
-        # リフレッシュトークン雛形（未実装のためダミー）。将来RS256/長寿命/Rotatingを実装。
-        dummy_refresh = secrets.token_urlsafe(48)
-        response.set_cookie(
-            key="refresh_token",
-            value=dummy_refresh,
-            httponly=True,
-            secure=_settings.is_production(),
-            samesite=_settings.csrf_cookie_samesite,
-            max_age=14 * 24 * 3600,
-            path="/api/v1/auth"
-        )
+        # リフレッシュトークン（HttpOnly、長寿命、ローテーション）
+        if refresh_token_value:
+            response.set_cookie(
+                key=_settings.refresh_cookie_name,
+                value=refresh_token_value,
+                httponly=True,
+                secure=_settings.is_production(),
+                samesite=_settings.csrf_cookie_samesite,
+                max_age=_settings.refresh_token_ttl_days * 24 * 3600,
+                path="/api/v1/auth"
+            )
         # CSRFトークン（非HttpOnly）
         csrf_token = secrets.token_urlsafe(32)
         response.set_cookie(
@@ -336,6 +353,12 @@ async def logout(
         
         from fastapi.responses import JSONResponse
         from ...core.config import settings as _settings
+        # すべてのリフレッシュトークンを無効化
+        try:
+            mgr = RefreshTokenManager()
+            await mgr.revoke_all_for_user(current_user.user_id)
+        except Exception as e:
+            logger.warning(f"Failed to revoke refresh tokens: {e}")
         response = JSONResponse(
             status_code=status.HTTP_200_OK,
             content=BaseResponse(
@@ -347,6 +370,7 @@ async def logout(
         # クッキー削除
         response.delete_cookie("access_token", path="/")
         response.delete_cookie(_settings.csrf_cookie_name, path="/")
+        response.delete_cookie(_settings.refresh_cookie_name, path="/api/v1/auth")
         return response
         
     except Exception as e:
@@ -358,18 +382,84 @@ async def logout(
 
 @router.post("/refresh", response_model=BaseResponse[TokenResponse])
 async def refresh_token(
-    refresh_token: str,
     req: Request,
+    body: RefreshRequest | None = None,
     db = Depends(get_db_session)
 ):
     """
-    トークンリフレッシュ（将来実装）
+    トークンリフレッシュ
+    - HttpOnly Cookieのリフレッシュトークンを検証
+    - ローテーションして新しいアクセストークンと新しいリフレッシュトークンを発行
     """
-    # TODO: リフレッシュトークンの実装
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Refresh token not implemented yet"
-    )
+    try:
+        from ...core.security import InputSanitizer
+        mgr = RefreshTokenManager()
+        cookie_name = settings.refresh_cookie_name
+        token_in_cookie = req.cookies.get(cookie_name)
+        token_from_body = (body.refresh_token if body else None)
+        token_value = token_from_body or token_in_cookie
+        payload = await mgr.validate(token_value)
+        if not payload:
+            return BaseResponse(
+                success=False,
+                error="Invalid refresh token",
+                message="Authentication failed"
+            )
+        # 新しいアクセストークン
+        access_token, expires_in = create_access_token(
+            user_id=payload["user_id"],
+            username=payload.get("username", f"user_{payload['user_id']}"),
+            roles=payload.get("roles", ["user"]),
+            device_id=payload.get("device_id"),
+            expires_delta=timedelta(minutes=30)
+        )
+        # リフレッシュトークンをローテーション
+        rotated = await mgr.rotate(token_value)
+        if not rotated:
+            return BaseResponse(
+                success=False,
+                error="Rotation failed",
+                message="Authentication failed"
+            )
+        new_refresh, new_payload = rotated
+        # レスポンス
+        from fastapi.responses import JSONResponse
+        resp = JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=BaseResponse(
+                success=True,
+                data=TokenResponse(
+                    access_token=access_token,
+                    token_type="bearer",
+                    expires_in=expires_in
+                ),
+                message="Token refreshed"
+            ).model_dump()
+        )
+        # アクセストークンを更新
+        resp.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=settings.is_production(),
+            samesite=settings.csrf_cookie_samesite,
+            max_age=expires_in,
+            path="/"
+        )
+        # 新しいリフレッシュトークンCookie
+        resp.set_cookie(
+            key=cookie_name,
+            value=new_refresh,
+            httponly=True,
+            secure=settings.is_production(),
+            samesite=settings.csrf_cookie_samesite,
+            max_age=settings.refresh_token_ttl_days * 24 * 3600,
+            path="/api/v1/auth"
+        )
+        return resp
+    except Exception as e:
+        logger.error(f"Refresh error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.get("/me", response_model=BaseResponse[UserResponse])
 async def get_me(

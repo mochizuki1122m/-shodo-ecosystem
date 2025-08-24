@@ -91,14 +91,18 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
                 path=request.url.path,
                 correlation_id=correlation_id
             )
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={
-                    "error": "LPR_TOKEN_REQUIRED",
-                    "message": "LPR token is required for this operation",
-                    "correlation_id": correlation_id
-                }
-            )
+            # fail-open/closed
+            if settings.lpr_fail_open and not settings.is_production():
+                return await call_next(request)
+            else:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={
+                        "error": "LPR_TOKEN_REQUIRED",
+                        "message": "LPR token is required for this operation",
+                        "correlation_id": correlation_id
+                    }
+                )
         
         # Extract device fingerprint
         device_fingerprint = self._extract_device_fingerprint(request)
@@ -123,14 +127,17 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
                 error=verification.get("error"),
                 correlation_id=correlation_id
             )
-            return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "error": "LPR_VERIFICATION_FAILED",
-                    "message": verification.get("error", "Token verification failed"),
-                    "correlation_id": correlation_id
-                }
-            )
+            if settings.lpr_fail_open and not settings.is_production():
+                return await call_next(request)
+            else:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={
+                        "error": "LPR_VERIFICATION_FAILED",
+                        "message": verification.get("error", "Token verification failed"),
+                        "correlation_id": correlation_id
+                    }
+                )
         
         # Extract token info
         jti = verification.get("jti")
