@@ -8,6 +8,11 @@ from typing import Dict, Any, List, Optional, AsyncGenerator
 from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass
+import asyncio
+import time
+import random
+import structlog
+import httpx
 
 class ConnectorType(str, Enum):
     """コネクタタイプ"""
@@ -85,6 +90,12 @@ class BaseSaaSConnector(ABC):
         self._session = None
         self._rate_limiter = None
         self._initialized = False
+        self._logger = structlog.get_logger().bind(connector=self.__class__.__name__, name=self.config.name)
+        # Circuit breaker state
+        self._cb_failure_count: int = 0
+        self._cb_open_until_ts: float = 0.0
+        self._cb_threshold: int = 5
+        self._cb_open_seconds: int = 30
         
     @abstractmethod
     async def initialize(self) -> bool:
@@ -355,6 +366,59 @@ class BaseSaaSConnector(ABC):
     
     # === ユーティリティ ===
     
+    async def _resilient_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        retry_count: Optional[int] = None,
+        retry_delay: Optional[float] = None,
+        retry_on_status: Optional[List[int]] = None,
+        **kwargs,
+    ) -> httpx.Response:
+        """HTTP要求にリトライ/バックオフ/サーキットブレーカを適用して実行する。
+        - 429/5xxでリトライ
+        - 失敗が閾値を超えると一定時間オープン
+        """
+        # Circuit breaker check
+        now = time.time()
+        if self._cb_open_until_ts and now < self._cb_open_until_ts:
+            raise RuntimeError("circuit_open")
+        retry_count = self.config.retry_count if retry_count is None else retry_count
+        base_delay = self.config.retry_delay if retry_delay is None else retry_delay
+        retry_on_status = retry_on_status or [429, 500, 502, 503, 504]
+        attempt = 0
+        while True:
+            try:
+                resp = await self._session.request(method, url, **kwargs)
+                if resp.status_code in retry_on_status:
+                    # Honor Retry-After if present
+                    ra = resp.headers.get('Retry-After')
+                    delay = float(ra) if ra else None
+                    raise httpx.HTTPStatusError("retryable status", request=resp.request, response=resp)
+                # Success path
+                self._cb_failure_count = 0
+                return resp
+            except Exception as e:
+                attempt += 1
+                self._cb_failure_count += 1
+                self._logger.warning(
+                    "request_failed",
+                    method=method,
+                    url=url,
+                    attempt=attempt,
+                    error=str(e)
+                )
+                if attempt > retry_count:
+                    # Open circuit if persistent failures
+                    if self._cb_failure_count >= self._cb_threshold:
+                        self._cb_open_until_ts = time.time() + self._cb_open_seconds
+                        self._logger.error("circuit_opened", open_seconds=self._cb_open_seconds)
+                    raise
+                # Exponential backoff with jitter
+                sleep_sec = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 0.2)
+                await asyncio.sleep(sleep_sec)
+
     async def get_rate_limit_status(self) -> Dict[str, Any]:
         """
         レート制限の状態取得

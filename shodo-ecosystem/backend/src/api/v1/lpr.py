@@ -122,6 +122,15 @@ class VisibleLoginResponse(BaseModel):
     method: Optional[str] = None
     error: Optional[str] = None
 
+class SimpleIssueRequest(BaseModel):
+    """簡易発行用: E2E互換のためのエイリアス。"""
+    service: str
+    purpose: str
+    scopes: List[Dict[str, str]]
+    device_fingerprint: Dict[str, Any]
+    ttl_seconds: int | None = 3600
+    consent: bool = True
+
 # ===== エンドポイント =====
 
 @router.post("/visible-login", response_model=VisibleLoginResponse)
@@ -315,6 +324,43 @@ async def issue_lpr_token(
         )
         
         return error_response(code="LPR_ISSUE_FAILED", message=str(e))
+
+@router.post("/issue-simple", response_model=BaseResponse[LPRTokenData])
+async def issue_lpr_token_simple(
+    request: Request,
+    body: SimpleIssueRequest,
+    current_user: Dict = Depends(get_current_user),
+) -> BaseResponse[LPRTokenData]:
+    """セッションを伴わない簡易LPR発行（検証用）。本番では通常フローを推奨。"""
+    try:
+        # スコープ整形
+        scopes = [
+            LPRScope(method=s.get("method"), url_pattern=s.get("url_pattern"))
+            for s in (body.scopes or [])
+        ]
+        device_fingerprint = DeviceFingerprint(**body.device_fingerprint)
+        lpr_service = await get_lpr_service()
+        result = await lpr_service.issue_token(
+            user_id=current_user["sub"],
+            device_fingerprint=device_fingerprint,
+            scopes=scopes,
+            service=body.service,
+            purpose=body.purpose,
+            consent=body.consent,
+            policy=LPRPolicy(),
+        )
+        return BaseResponse[LPRTokenData](
+            success=True,
+            data=LPRTokenData(
+                token=result['token'],
+                jti=result['jti'],
+                expires_at=result.get('expires_at'),
+                scopes=[s.to_dict() for s in scopes],
+            )
+        )
+    except Exception as e:
+        logger.error("LPR simple token issuance failed", error=str(e))
+        return error_response(code="LPR_SIMPLE_ISSUE_FAILED", message=str(e))
 
 @router.post("/verify", response_model=BaseResponse[LPRVerifyData])
 async def verify_lpr_token(

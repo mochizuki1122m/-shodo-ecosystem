@@ -31,6 +31,10 @@ from .utils.correlation import CorrelationIDMiddleware
 from .monitoring.metrics import MetricsMiddleware, init_system_metrics, get_metrics
 from .monitoring.tracing import init_tracing
 
+# ===== Secrets (Vault) =====
+from pydantic import SecretStr
+from .services.secrets.vault_client import get_vault_client
+
 # API routers
 from .api import health
 from .api.v1 import nlp, preview
@@ -67,6 +71,36 @@ async def lifespan(app: FastAPI):
         logger.info("Settings validated successfully")
     except ValueError as e:
         logger.error("Settings validation failed", error=str(e))
+        raise
+    
+    # Initialize Vault and load critical secrets in production
+    try:
+        if settings.is_production():
+            vault = await get_vault_client()
+            # JWT keys
+            jwt_keys = await vault.get_jwt_keys()
+            if not jwt_keys.get("private_key") or not jwt_keys.get("public_key"):
+                raise ValueError("JWT keys missing from Vault")
+            settings.jwt_private_key = jwt_keys.get("private_key")
+            settings.jwt_public_key = jwt_keys.get("public_key")
+            settings.jwt_algorithm = "RS256"
+            # Encryption key
+            enc_key = await vault.get_encryption_key()
+            if not enc_key:
+                raise ValueError("Encryption key missing from Vault")
+            settings.encryption_key = SecretStr(enc_key.decode("utf-8") if isinstance(enc_key, (bytes, bytearray)) else str(enc_key))
+            # Audit signing key (optional but recommended)
+            try:
+                audit_sign = await vault.get_secret("audit", "signing_key")
+                if audit_sign:
+                    settings.audit_signing_key = audit_sign
+            except Exception as e:
+                logger.warning("Audit signing key not found in Vault", error=str(e))
+            # Re-validate security with loaded secrets
+            settings.validate_security()
+            logger.info("Vault secrets loaded and security validated")
+    except Exception as e:
+        logger.error("Failed to load secrets from Vault", error=str(e))
         raise
     
     # Initialize database

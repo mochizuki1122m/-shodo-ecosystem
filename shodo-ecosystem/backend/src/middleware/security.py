@@ -14,7 +14,10 @@ from ..core.config import settings
 logger = logging.getLogger(__name__)
 
 class LegacyRateLimitMiddleware(BaseHTTPMiddleware):
-    """レート制限ミドルウェア（旧: 重複実装、統一のため非推奨）"""
+    """[DEPRECATED] 旧レート制限ミドルウェア（使用禁止）
+    統一実装は `middleware/rate_limit.py` を利用し、`main*.py` で追加してください。
+    このクラスは後方互換のため残置されています。
+    """
     
     def __init__(self, app, requests_per_minute: int = 60, requests_per_hour: int = 1000):
         super().__init__(app)
@@ -182,6 +185,7 @@ def setup_security_middleware(app, settings):
     """セキュリティミドルウェアのセットアップ（レート制限は統一ミドルウェアで実施）"""
     
     # レート制限は middleware/rate_limit.py の実装を使用（main側で追加済み）
+    # LegacyRateLimitMiddleware は非推奨のため追加しないこと
     
     # セキュリティヘッダー
     app.add_middleware(SecurityHeadersMiddleware)
