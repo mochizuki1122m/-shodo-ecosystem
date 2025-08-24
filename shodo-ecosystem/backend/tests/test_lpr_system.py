@@ -12,12 +12,11 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, AsyncMock
 import jwt
 
-from src.services.auth.lpr import (
+from src.services.auth.lpr_service import (
     LPRService,
     LPRScope,
     LPRPolicy,
     DeviceFingerprint,
-    LPRToken,
 )
 from src.services.auth.visible_login import (
     VisibleLoginDetector,
@@ -33,7 +32,6 @@ from src.services.audit.audit_logger import (
 )
 from src.middleware.lpr_enforcer import (
     LPREnforcerMiddleware,
-    LPRRateLimiter,
 )
 
 # ===== フィクスチャ =====

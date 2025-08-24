@@ -66,11 +66,22 @@ class RateLimiter:
     
     def _get_client_id(self, request: Request) -> str:
         """クライアント識別子を生成"""
-        # 優先順位: 認証ユーザーID > X-Forwarded-For > IPアドレス
-        
+        # 優先順位: LPR JTI > 認証ユーザーID > X-Forwarded-For+UA
+        try:
+            lpr_jti = getattr(request.state, "lpr_jti", None)
+            if lpr_jti:
+                return f"lpr:{lpr_jti}"
+        except Exception:
+            pass
+
         # 認証ユーザーがいれば使用
         if hasattr(request.state, "user") and request.state.user:
-            return f"user:{request.state.user.user_id}"
+            try:
+                uid = getattr(request.state.user, "user_id", None) or request.state.user.get("sub")
+                if uid:
+                    return f"user:{uid}"
+            except Exception:
+                return f"user:{request.state.user}"
         
         # IPアドレスベース
         forwarded_for = request.headers.get("X-Forwarded-For")
