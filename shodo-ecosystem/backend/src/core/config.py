@@ -108,6 +108,13 @@ class Settings(BaseSettings):
     csrf_cookie_secure: bool = Field(default=True, env="CSRF_COOKIE_SECURE")
     csrf_cookie_samesite: str = Field(default="Lax", env="CSRF_COOKIE_SAMESITE")
     
+    # リフレッシュトークン設定
+    refresh_token_ttl_days: int = Field(default=14, env="REFRESH_TOKEN_TTL_DAYS")
+    refresh_cookie_name: str = Field(default="refresh_token", env="REFRESH_COOKIE_NAME")
+    
+    # LPR フェイルオープン/クローズ制御
+    lpr_fail_open: bool = Field(default=False, env="LPR_FAIL_OPEN")
+    
     # SLO 設定
     slo_availability_target: float = Field(default=99.9, env="SLO_AVAILABILITY_TARGET")
     slo_latency_p95_ms: int = Field(default=300, env="SLO_LATENCY_P95_MS")

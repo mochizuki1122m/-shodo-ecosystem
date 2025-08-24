@@ -109,7 +109,37 @@ const ollama = new Ollama({
 const vllm = new OpenAI({
   baseURL: process.env.VLLM_URL || 'http://localhost:8001/v1',  // ポートを8001に統一
   apiKey: 'dummy', // vLLMはAPIキー不要
+  timeout: Number(process.env.VLLM_TIMEOUT_MS || 30000),
 });
+
+// シンプルなリトライ/バックオフ/サーキットブレーカ
+let circuitOpen = false;
+let circuitOpenedAt = 0;
+const CB_OPEN_MS = Number(process.env.CB_OPEN_MS || 15000);
+const MAX_RETRIES = Number(process.env.MAX_RETRIES || 2);
+const BASE_BACKOFF_MS = Number(process.env.BASE_BACKOFF_MS || 250);
+
+const withResilience = async (fn) => {
+  if (circuitOpen && (Date.now() - circuitOpenedAt) < CB_OPEN_MS) {
+    throw new Error('circuit_open');
+  }
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fn();
+      // success: half-open -> close
+      circuitOpen = false;
+      return res;
+    } catch (err) {
+      if (attempt === MAX_RETRIES) {
+        circuitOpen = true;
+        circuitOpenedAt = Date.now();
+        throw err;
+      }
+      const backoff = BASE_BACKOFF_MS * Math.pow(2, attempt);
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+};
 
 // ヘルスチェック
 fastify.get('/health', async (request, reply) => {
@@ -189,13 +219,13 @@ fastify.post('/v1/completions', async (request, reply) => {
     }
   } else {
     // vLLM使用
-    const completion = await vllm.completions.create({
+    const completion = await withResilience(() => vllm.completions.create({
       model: MODEL_NAME,
       prompt,
       max_tokens,
       temperature,
       stream,
-    });
+    }));
     // usage計測（概算）
     inferenceTokens.inc({ engine: 'vllm', type: 'completion' }, (prompt.split(' ').length || 0));
     return completion;
@@ -260,13 +290,13 @@ fastify.post('/v1/chat/completions', async (request, reply) => {
     }
   } else {
     // vLLM使用
-    const completion = await vllm.chat.completions.create({
+    const completion = await withResilience(() => vllm.chat.completions.create({
       model: MODEL_NAME,
       messages,
       max_tokens,
       temperature,
       stream,
-    });
+    }));
     inferenceTokens.inc({ engine: 'vllm', type: 'chat' }, (prompt.split(' ').length || 0));
     return completion;
   }
@@ -295,12 +325,12 @@ fastify.post('/v1/analyze', async (request, reply) => {
       inferenceTokens.inc({ engine: 'ollama', type: 'analyze' }, (String(text || '').split(' ').length || 0));
       return JSON.parse(response.response);
     } else {
-      const completion = await vllm.completions.create({
+      const completion = await withResilience(() => vllm.completions.create({
         model: MODEL_NAME,
         prompt: `${systemPrompt}\n\n${userPrompt}`,
         max_tokens: 1024,
         temperature: 0.3,
-      });
+      }));
       inferenceTokens.inc({ engine: 'vllm', type: 'analyze' }, (String(text || '').split(' ').length || 0));
       return JSON.parse(completion.choices[0].text);
     }

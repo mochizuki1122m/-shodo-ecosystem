@@ -14,6 +14,7 @@ from ...schemas.preview import (
 from ...services.preview.sandbox_engine import (
     SandboxPreviewEngine, Change
 )
+from ...services.database import get_redis
 from ...core.security import InputSanitizer
 from ...middleware.auth import get_current_user
 from ...utils.correlation import get_correlation_id
@@ -35,8 +36,8 @@ preview_engine = SandboxPreviewEngine(
     cache_size=50
 )
 
-# In-memory preview storage (should be Redis in production)
-preview_storage = {}
+PREVIEW_PREFIX = "preview:obj:"
+PREVIEW_TTL = 3600  # 1h default
 
 @router.post(
     "/generate",
@@ -92,8 +93,31 @@ async def generate_preview(
             }
         )
         
-        # Store preview for later refinement
-        preview_storage[preview.id] = preview
+        # Store preview for later refinement (Redis if available)
+        redis_client = get_redis()
+        if redis_client:
+            try:
+                import json
+                from dataclasses import asdict
+                await redis_client.setex(
+                    PREVIEW_PREFIX + preview.id,
+                    PREVIEW_TTL,
+                    json.dumps({
+                        "id": preview.id,
+                        "version_id": preview.version_id,
+                        "service": preview.service,
+                        "visual": preview.visual,
+                        "diff": preview.diff,
+                        "changes": [asdict(c) for c in preview.changes],
+                        "confidence": preview.confidence,
+                        "revert_token": preview.revert_token,
+                    })
+                )
+            except Exception:
+                pass
+        else:
+            # Fallback: no-op (avoid in-memory to support scale)
+            logger.warning("Redis unavailable: preview not cached; refinement requires ID persistence")
         
         # Convert to response format
         response_data = PreviewData(
@@ -179,14 +203,36 @@ async def refine_preview(
     
     try:
         # Get existing preview
-        if preview_id not in preview_storage:
+        current_preview = None
+        redis_client = get_redis()
+        if redis_client:
+            try:
+                import json
+                data = await redis_client.get(PREVIEW_PREFIX + preview_id)
+                if data:
+                    obj = json.loads(data)
+                    # Rehydrate minimal Preview for refine
+                    from ...services.preview.sandbox_engine import Preview
+                    current_preview = Preview(
+                        id=obj["id"],
+                        version_id=obj["version_id"],
+                        service=obj["service"],
+                        visual=obj.get("visual", {}),
+                        diff=obj.get("diff", {}),
+                        changes=[Change(**c) for c in obj.get("changes", [])],
+                        created_at=None,
+                        revert_token=obj.get("revert_token", ""),
+                        confidence=obj.get("confidence", 0.0),
+                        refinement_history=[]
+                    )
+            except Exception:
+                current_preview = None
+        if not current_preview:
             return error_response(
                 code="NOT_FOUND",
                 message=f"Preview {preview_id} not found",
                 correlation_id=correlation_id
             )
-        
-        current_preview = preview_storage[preview_id]
         
         logger.info(
             "Preview refinement request",
@@ -203,7 +249,27 @@ async def refine_preview(
         )
         
         # Store refined version
-        preview_storage[refined_preview.id] = refined_preview
+        redis_client = get_redis()
+        if redis_client:
+            try:
+                import json
+                from dataclasses import asdict
+                await redis_client.setex(
+                    PREVIEW_PREFIX + refined_preview.id,
+                    PREVIEW_TTL,
+                    json.dumps({
+                        "id": refined_preview.id,
+                        "version_id": refined_preview.version_id,
+                        "service": refined_preview.service,
+                        "visual": refined_preview.visual,
+                        "diff": refined_preview.diff,
+                        "changes": [asdict(c) for c in refined_preview.changes],
+                        "confidence": refined_preview.confidence,
+                        "revert_token": refined_preview.revert_token,
+                    })
+                )
+            except Exception:
+                pass
         
         # Convert to response
         response_data = PreviewData(

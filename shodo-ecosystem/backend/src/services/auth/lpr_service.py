@@ -361,7 +361,7 @@ class LPRService:
                     logger.warning("Redis error during verify, falling back to memory", error=str(e))
             # Memory fallback revocation check
             now_ts = self._now_ts()
-            if not self.redis or revoked is False:
+            if (not self.redis) or (revoked is False):
                 exp_ts = self._revoked_jtis.get(jti)
                 if exp_ts and exp_ts > now_ts:
                     revoked = True

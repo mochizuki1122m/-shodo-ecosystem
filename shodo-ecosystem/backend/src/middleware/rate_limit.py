@@ -15,6 +15,7 @@ import logging
 
 from ..core.config import settings
 from ..services.database import get_redis
+from ..monitoring.metrics import MetricsCollector
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +329,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 f"Rate limit exceeded for {request.client.host} on {request.url.path}"
             )
+            try:
+                client_type = "lpr" if getattr(request.state, "lpr_jti", None) else "ip"
+                MetricsCollector.record_rate_limit_hit(endpoint=request.url.path, client_type=client_type)
+            except Exception:
+                pass
             
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
