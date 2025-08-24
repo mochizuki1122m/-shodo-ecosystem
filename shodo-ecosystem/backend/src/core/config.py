@@ -179,6 +179,14 @@ class Settings(BaseSettings):
             weak = "change-this-in-production-to-a-secure-random-string"
             if self.secret_key.get_secret_value() == weak or self.jwt_secret_key.get_secret_value() == weak or self.encryption_key.get_secret_value() == weak:
                 raise ValueError("Default secrets must be overridden in production")
+            # CORS/TrustedHostの厳格化: ワイルドカード禁止
+            if any(o == "*" for o in (self.cors_origins or [])):
+                raise ValueError("CORS_ORIGINS must not contain '*'")
+            if any(h == "*" for h in (self.trusted_hosts or [])):
+                raise ValueError("TRUSTED_HOSTS must not contain '*'")
+            # CSRF CookieはSecure必須
+            if not self.csrf_cookie_secure:
+                raise ValueError("CSRF_COOKIE_SECURE must be true in production")
 
     class Config:
         env_file = ".env"

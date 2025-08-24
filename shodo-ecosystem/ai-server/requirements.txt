@@ -11,3 +11,4 @@ numpy==1.26.3
 huggingface-hub==0.20.3
 einops==0.7.0
 flash-attn==2.5.0
+prometheus-client==0.20.0

@@ -60,12 +60,7 @@ class AuthService {
     const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
     
     if (response.success && response.data) {
-      // トークンをローカルストレージに保存
-      localStorage.setItem('access_token', response.data.access_token);
-      if (response.data.refresh_token) {
-        localStorage.setItem('refresh_token', response.data.refresh_token);
-      }
-      
+      // Cookieベース運用に統一（フロントでは保存しない）
       return response.data;
     }
     
@@ -79,10 +74,6 @@ class AuthService {
     try {
       await apiClient.post('/auth/logout');
     } finally {
-      // ローカルストレージをクリア
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      
       // ホームページにリダイレクト
       window.location.href = '/';
     }
@@ -164,17 +155,10 @@ class AuthService {
    * トークンリフレッシュ
    */
   async refreshToken(refreshToken: string): Promise<LoginResponse> {
-    const response = await apiClient.post<LoginResponse>('/auth/refresh', {
-      refresh_token: refreshToken
-    });
+    // Cookieベースのため、ボディなしで呼び出し
+    const response = await apiClient.post<LoginResponse>('/auth/refresh', {});
     
     if (response.success && response.data) {
-      // 新しいトークンを保存
-      localStorage.setItem('access_token', response.data.access_token);
-      if (response.data.refresh_token) {
-        localStorage.setItem('refresh_token', response.data.refresh_token);
-      }
-      
       return response.data;
     }
     
@@ -207,32 +191,22 @@ class AuthService {
    * トークンの有効性チェック
    */
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('access_token');
-    if (!token) return false;
-    
-    try {
-      // JWTのペイロードをデコード（簡易チェック）
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const exp = payload.exp * 1000; // Convert to milliseconds
-      
-      return Date.now() < exp;
-    } catch {
-      return false;
-    }
+    // Cookieベースのため、フロント単体では厳密判定しない（サーバ応答で判断）
+    return true;
   }
 
   /**
    * 現在のトークン取得
    */
   getAccessToken(): string | null {
-    return localStorage.getItem('access_token');
+    return null; // Cookieベース運用
   }
 
   /**
    * リフレッシュトークン取得
    */
   getRefreshToken(): string | null {
-    return localStorage.getItem('refresh_token');
+    return null; // Cookieベース運用
   }
 }
 
