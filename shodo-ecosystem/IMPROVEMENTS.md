@@ -202,3 +202,23 @@ docker-compose up -d backend
 ### Docker ビルドエラー
 - `docker-compose down -v` で完全リセット
 - `docker system prune -a` でキャッシュクリア# Additional improvement for v5.0
+
+## 🔮 ロードマップ（抜粋）
+
+### GraphQL 導入計画
+- Phase 1: 読み取り専用スキーマ（NLP結果、プレビュー状態、LPRステータス）
+  - 目標: `backend/src/api/graphql/schema.py` 追加、`/graphql` エンドポイント公開
+  - 型共有: Pydantic ↔ Graphene の相互変換ユーティリティ
+- Phase 2: ミューテーション（プレビュー適用、LPR発行）
+  - レート制限・LPR連携のディレクティブ実装
+- Phase 3: サブスクリプション（プレビュー進捗、監査イベント）
+  - WebSocket/Server-Sent Events 併用
+
+### 2FA（多要素認証）
+- Phase 1: TOTP ベース 2FA（RFC 6238）
+  - 追加: `/api/v1/auth/2fa/setup`, `/api/v1/auth/2fa/verify`
+  - バックアップコード、デバイス記憶（指紋と組合せ）
+- Phase 2: WebAuthn（FIDO2）
+  - デバイスバインディング強化、LPR と連動
+- Phase 3: ポリシー/ロール連動
+  - 機密操作では 2FA 強制、監査に 2FA 証跡を付与

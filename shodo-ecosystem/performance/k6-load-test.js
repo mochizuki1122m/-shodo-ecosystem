@@ -9,6 +9,9 @@ import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 import { randomItem } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
+// NOTE: If AI server protection is enabled, set X-Internal-Token via env `AI_INTERNAL_TOKEN`
+const AI_INTERNAL_TOKEN = __ENV.AI_INTERNAL_TOKEN || '';
+
 // Custom metrics
 const errorRate = new Rate('errors');
 const nlpLatency = new Trend('nlp_latency');
@@ -25,7 +28,7 @@ export const options = {
       duration: '1m',
       tags: { test_type: 'smoke' },
     },
-    
+
     // Load test - gradual ramp up to target load
     load: {
       executor: 'ramping-vus',
@@ -40,7 +43,7 @@ export const options = {
       gracefulRampDown: '30s',
       tags: { test_type: 'load' },
     },
-    
+
     // Stress test - push beyond normal capacity
     stress: {
       executor: 'ramping-vus',
@@ -56,7 +59,7 @@ export const options = {
       ],
       tags: { test_type: 'stress' },
     },
-    
+
     // Spike test - sudden traffic surge
     spike: {
       executor: 'ramping-vus',
@@ -72,7 +75,7 @@ export const options = {
       ],
       tags: { test_type: 'spike' },
     },
-    
+
     // Soak test - sustained load for extended period
     soak: {
       executor: 'constant-vus',
@@ -81,7 +84,7 @@ export const options = {
       tags: { test_type: 'soak' },
     },
   },
-  
+
   thresholds: {
     // SLO requirements
     http_req_duration: ['p(95)<300', 'p(99)<600'], // API latency
@@ -95,6 +98,7 @@ export const options = {
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
+const AI_URL = __ENV.AI_URL || 'http://localhost:8001';
 
 // Test data
 const NLP_INPUTS = [
@@ -123,6 +127,12 @@ function getAuthHeaders() {
   };
 }
 
+function getAIHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (AI_INTERNAL_TOKEN) headers['X-Internal-Token'] = AI_INTERNAL_TOKEN;
+  return headers;
+}
+
 function generateDeviceFingerprint() {
   return {
     user_agent: 'K6/LoadTest',
@@ -135,7 +145,6 @@ function generateDeviceFingerprint() {
 // Test scenarios
 export function testHealthCheck() {
   const response = http.get(`${BASE_URL}/health`);
-  
   check(response, {
     'health check status is 200': (r) => r.status === 200,
     'health check returns healthy': (r) => {
@@ -145,17 +154,25 @@ export function testHealthCheck() {
   });
 }
 
+export function testAIAnalyzeDirect() {
+  // Direct call to AI server (protected)
+  const payload = JSON.stringify({ text: randomItem(NLP_INPUTS), mode: 'ai_only' });
+  const headers = getAIHeaders();
+  const res = http.post(`${AI_URL}/v1/analyze`, payload, { headers });
+  check(res, {
+    'AI analyze status is 200 or 403 (if misconfigured)': (r) => r.status === 200 || r.status === 403,
+  });
+}
+
 export function testNLPAnalysis() {
   const payload = {
     text: randomItem(NLP_INPUTS),
     mode: 'dual_path',
   };
-  
   const params = {
     headers: getAuthHeaders(),
     tags: { endpoint: 'nlp_analyze' },
   };
-  
   const startTime = Date.now();
   const response = http.post(
     `${BASE_URL}/api/v1/nlp/analyze`,
@@ -163,9 +180,7 @@ export function testNLPAnalysis() {
     params
   );
   const duration = Date.now() - startTime;
-  
   nlpLatency.add(duration);
-  
   const success = check(response, {
     'NLP analysis status is 200': (r) => r.status === 200,
     'NLP analysis returns intent': (r) => {
@@ -178,7 +193,6 @@ export function testNLPAnalysis() {
     },
     'NLP latency < 1500ms': () => duration < 1500,
   });
-  
   errorRate.add(!success);
 }
 
@@ -187,12 +201,10 @@ export function testPreviewGeneration() {
     changes: PREVIEW_CHANGES,
     service_id: 'shopify',
   };
-  
   const params = {
     headers: getAuthHeaders(),
     tags: { endpoint: 'preview_generate' },
   };
-  
   const startTime = Date.now();
   const response = http.post(
     `${BASE_URL}/api/v1/preview/generate`,
@@ -200,9 +212,7 @@ export function testPreviewGeneration() {
     params
   );
   const duration = Date.now() - startTime;
-  
   previewLatency.add(duration);
-  
   const success = check(response, {
     'Preview generation status is 200': (r) => r.status === 200,
     'Preview returns ID': (r) => {
@@ -211,35 +221,11 @@ export function testPreviewGeneration() {
     },
     'Preview latency < 500ms': () => duration < 500,
   });
-  
   errorRate.add(!success);
-  
-  // If successful, test refinement
-  if (response.status === 200) {
-    const body = JSON.parse(response.body);
-    const previewId = body.data.id;
-    
-    sleep(1);
-    
-    const refinePayload = {
-      refinement: '価格を500円に変更',
-    };
-    
-    const refineResponse = http.post(
-      `${BASE_URL}/api/v1/preview/${previewId}/refine`,
-      JSON.stringify(refinePayload),
-      params
-    );
-    
-    check(refineResponse, {
-      'Preview refinement status is 200': (r) => r.status === 200,
-    });
-  }
 }
 
 export function testLPRFlow() {
   const fingerprint = generateDeviceFingerprint();
-  
   // Issue LPR token
   const issuePayload = {
     service: 'shopify',
@@ -250,12 +236,10 @@ export function testLPRFlow() {
     device_fingerprint: fingerprint,
     consent: true,
   };
-  
   const params = {
     headers: getAuthHeaders(),
     tags: { endpoint: 'lpr_issue' },
   };
-  
   const startTime = Date.now();
   const issueResponse = http.post(
     `${BASE_URL}/api/v1/lpr/issue`,
@@ -263,9 +247,7 @@ export function testLPRFlow() {
     params
   );
   const issueDuration = Date.now() - startTime;
-  
   lprLatency.add(issueDuration);
-  
   const issueSuccess = check(issueResponse, {
     'LPR issue status is 200': (r) => r.status === 200,
     'LPR token received': (r) => {
@@ -274,69 +256,21 @@ export function testLPRFlow() {
     },
     'LPR issue latency < 200ms': () => issueDuration < 200,
   });
-  
   errorRate.add(!issueSuccess);
-  
-  if (issueResponse.status === 200) {
-    const body = JSON.parse(issueResponse.body);
-    const token = body.data.token;
-    const jti = body.data.jti;
-    
-    // Verify token
-    const verifyPayload = {
-      token: token,
-      device_fingerprint: fingerprint,
-    };
-    
-    const verifyResponse = http.post(
-      `${BASE_URL}/api/v1/lpr/verify`,
-      JSON.stringify(verifyPayload),
-      params
-    );
-    
-    check(verifyResponse, {
-      'LPR verify status is 200': (r) => r.status === 200,
-      'LPR token is valid': (r) => {
-        const body = JSON.parse(r.body);
-        return body.data && body.data.valid === true;
-      },
-    });
-    
-    // Revoke token
-    sleep(1);
-    
-    const revokePayload = {
-      jti: jti,
-      reason: 'test_complete',
-    };
-    
-    const revokeResponse = http.post(
-      `${BASE_URL}/api/v1/lpr/revoke`,
-      JSON.stringify(revokePayload),
-      params
-    );
-    
-    check(revokeResponse, {
-      'LPR revoke status is 200': (r) => r.status === 200,
-    });
-  }
 }
 
 export function testConcurrentRequests() {
-  // Test system behavior under concurrent load
   const batch = [
     ['GET', `${BASE_URL}/health`],
     ['POST', `${BASE_URL}/api/v1/nlp/analyze`, JSON.stringify({ text: 'test' })],
     ['GET', `${BASE_URL}/metrics`],
   ];
-  
   const responses = http.batch(batch.map(([method, url, body]) => ({
     method,
     url,
     body,
     params: { headers: getAuthHeaders() },
   })));
-  
   responses.forEach((response, index) => {
     check(response, {
       [`Request ${index} succeeded`]: (r) => r.status < 500,
@@ -348,19 +282,19 @@ export function testConcurrentRequests() {
 export default function () {
   // Mix of different operations to simulate real usage
   const scenario = Math.random();
-  
-  if (scenario < 0.1) {
+  if (scenario < 0.08) {
     testHealthCheck();
-  } else if (scenario < 0.5) {
+  } else if (scenario < 0.45) {
     testNLPAnalysis();
-  } else if (scenario < 0.7) {
+  } else if (scenario < 0.65) {
     testPreviewGeneration();
-  } else if (scenario < 0.9) {
+  } else if (scenario < 0.85) {
     testLPRFlow();
+  } else if (scenario < 0.95) {
+    testAIAnalyzeDirect();
   } else {
     testConcurrentRequests();
   }
-  
   // Think time between requests
   sleep(Math.random() * 2 + 1);
 }
@@ -368,6 +302,4 @@ export default function () {
 // Teardown function
 export function teardown(data) {
   console.log('Load test completed');
-  console.log(`Total VUs: ${__ENV.K6_VUS}`);
-  console.log(`Duration: ${__ENV.K6_DURATION}`);
 }

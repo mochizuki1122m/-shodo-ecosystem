@@ -355,6 +355,22 @@ Structured logging provides:
 
 ## Security Features
 
+### Environment Behavior Differences (LPR/Rate Limiting)
+- **Development**:
+  - `main_unified.py` では LPR 強制や厳格なレート制限を簡略化し、開発体験を優先
+  - `CORS`/`TrustedHost` はワイルドカード許容
+- **Production**:
+  - `main_production.py` では `LPREnforcerMiddleware`/`RateLimitMiddleware` を有効化し、最小権限・スコープ検証・監査を必須化
+  - `CORS`/`TrustedHost` ワイルドカードは禁止、`CSRF_COOKIE_SECURE=true` 必須
+  - Redis が利用不可の場合のレート制限フォールバックは `RATE_LIMIT_FAIL_OPEN` に従う（既定は Fail-Close 推奨）
+
+### AI Server Hardening
+- AI サーバ（`ai-server/src/vllm_server.py`）は、以下の保護を実装:
+  - CORS は許可リストのみ（`AI_CORS_ORIGINS`）
+  - 内部API（`/v1/*`）は `X-Internal-Token` による検証（`AI_INTERNAL_TOKEN` を設定）
+  - `/health` `/metrics` `/v1/models` は監視/可観測性向けに公開
+- バックエンド→AI サーバ呼び出しは `AI_INTERNAL_TOKEN` を自動付与（`DualPathEngine`）
+
 ### LPR (Limited Proxy Rights) System
 
 Shodo implements a novel security architecture:

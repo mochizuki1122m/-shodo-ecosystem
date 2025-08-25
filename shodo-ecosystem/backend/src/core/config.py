@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     vllm_retry_count: int = Field(default=3, env="VLLM_RETRY_COUNT")
     model_name: str = Field(default="openai/gpt-oss-20b", env="MODEL_NAME")
     inference_engine: str = Field(default="vllm", env="INFERENCE_ENGINE")
+    # AIサーバー内部認証トークン（存在時にバックエンド→AIサーバの認証に使用）
+    ai_internal_token: Optional[str] = Field(default=None, env="AI_INTERNAL_TOKEN")
     
     # セキュリティ設定
     secret_key: SecretStr = Field(
@@ -146,6 +148,17 @@ class Settings(BaseSettings):
     
     # CSP 設定（connect-src を環境変数で調整可能に）
     csp_connect_src: List[str] = Field(default=["'self'", "https:"], env="CSP_CONNECT_SRC")
+
+    # 観測性設定（トレーシング/メトリクス/OTLP）
+    tracing_enabled: bool = Field(default=False, env="TRACING_ENABLED")
+    metrics_enabled: bool = Field(default=True, env="METRICS_ENABLED")
+    otlp_endpoint: Optional[str] = Field(default=None, env="OTLP_ENDPOINT")
+
+    # 機能フラグ
+    feature_lpr_enabled: bool = Field(default=True, env="FEATURE_LPR_ENABLED")
+    feature_nlp_enabled: bool = Field(default=True, env="FEATURE_NLP_ENABLED")
+    feature_preview_enabled: bool = Field(default=True, env="FEATURE_PREVIEW_ENABLED")
+    feature_mcp_enabled: bool = Field(default=True, env="FEATURE_MCP_ENABLED")
     
     # 外部サービス設定
     shopify_api_key: Optional[str] = Field(default=None, env="SHOPIFY_API_KEY")
@@ -187,6 +200,9 @@ class Settings(BaseSettings):
             # CSRF CookieはSecure必須
             if not self.csrf_cookie_secure:
                 raise ValueError("CSRF_COOKIE_SECURE must be true in production")
+            # トレーシング有効時はOTLPエンドポイント必須
+            if self.tracing_enabled and not self.otlp_endpoint:
+                raise ValueError("OTLP_ENDPOINT is required when TRACING_ENABLED is true in production")
 
     class Config:
         env_file = ".env"
@@ -216,6 +232,11 @@ def get_settings() -> Settings:
         # 早期にわかるよう例外を再送出
         raise
     return s
+
+# 明示的な設定検証エントリ（本番エントリポイントから呼び出し）
+def validate_settings() -> None:
+    """設定の整合性を検証（例外時は起動を中止）"""
+    _ = get_settings()
 
 # グローバル設定インスタンス
 settings = get_settings()
