@@ -1,3 +1,11 @@
+def test_security_headers_present(client):
+    resp = client.get("/health")
+    assert resp.status_code in (200, 503)
+    # 最新推奨ヘッダが付与されていること
+    assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp.headers.get("X-Frame-Options") == "DENY"
+    assert "Permissions-Policy" in resp.headers
+    assert "Content-Security-Policy" in resp.headers
 """
 認証関連のテスト
 """

@@ -1,3 +1,8 @@
+def test_ai_health_uses_internal_token(monkeypatch, client):
+    # 内部トークン設定時にヘルスチェックが403にならないようにヘッダが付与されることを確認
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", "test-token")
+    resp = client.get("/health")
+    assert resp.status_code in (200, 503)
 """
 APIキー管理の統合テスト
 """

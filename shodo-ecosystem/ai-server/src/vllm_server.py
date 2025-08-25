@@ -50,8 +50,11 @@ async def internal_auth_middleware(request, call_next):
 		if path in public_paths:
 			return await call_next(request)
 		if path.startswith("/v1/") and AI_INTERNAL_TOKEN:
-			token = request.headers.get("X-Internal-Token")
-			if not token or token != AI_INTERNAL_TOKEN:
+			h_token = request.headers.get("X-Internal-Token")
+			auth = request.headers.get("Authorization") or ""
+			bearer = auth.split(" ")[-1] if auth.startswith("Bearer ") else None
+			provided = h_token or bearer
+			if not provided or provided != AI_INTERNAL_TOKEN:
 				from fastapi.responses import JSONResponse
 				return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 		return await call_next(request)

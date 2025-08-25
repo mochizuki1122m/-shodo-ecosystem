@@ -174,7 +174,11 @@ class HealthChecker:
         start_time = time.time()
         
         try:
-            async with httpx.AsyncClient(timeout=self.check_timeout) as client:
+            headers = {}
+            if settings.ai_internal_token:
+                # バックエンド→AIサーバは内部トークンを自動付与
+                headers["X-Internal-Token"] = settings.ai_internal_token
+            async with httpx.AsyncClient(timeout=self.check_timeout, headers=headers) as client:
                 response = await client.get(f"{settings.vllm_url}/health")
                 response.raise_for_status()
                 
@@ -224,6 +228,10 @@ class HealthChecker:
     async def check_external_services(self) -> List[ComponentHealth]:
         """外部サービスのヘルスチェック"""
         results = []
+
+        # 閉域/社内NW環境では外部到達性チェックを無効化可能
+        if not settings.health_external_check_enabled:
+            return results
         
         # インターネット接続テスト
         try:
@@ -330,7 +338,7 @@ class HealthChecker:
             return_exceptions=True
         )
         
-        # 外部サービスチェック
+        # 外部サービスチェック（環境で無効化可能）
         external_checks = await self.check_external_services()
         
         # 結果の整理

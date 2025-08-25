@@ -2,12 +2,21 @@
 データベース接続管理
 """
 
-from typing import Tuple
+from typing import Tuple, List, Tuple as TTuple
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.pool import QueuePool
 import redis.asyncio as redis
+from redis.asyncio import Redis as AsyncRedis
+try:
+    from redis.asyncio import RedisCluster  # type: ignore
+except Exception:  # pragma: no cover
+    RedisCluster = None  # type: ignore
+try:
+    from redis.asyncio import sentinel as ai_sentinel  # type: ignore
+except Exception:  # pragma: no cover
+    ai_sentinel = None  # type: ignore
 from contextlib import asynccontextmanager
 
 # 統一設定から読み込み
@@ -61,14 +70,53 @@ async def init_db() -> Tuple[bool, bool]:
         postgres_success = False
     
     try:
-        # Redis接続
-        redis_client = await redis.from_url(
-            REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True
-        )
-        await redis_client.ping()
-        redis_success = True
+        # Redis接続（モード別）
+        mode = getattr(settings, "redis_mode", "standalone").lower()
+        if mode == "cluster" and RedisCluster is not None:
+            nodes: List[str] = getattr(settings, "redis_cluster_nodes", []) or []
+            if not nodes:
+                # URLからノードを抽出（単一指定対応）
+                redis_client = await redis.from_url(
+                    REDIS_URL,
+                    encoding="utf-8",
+                    decode_responses=True,
+                )
+            else:
+                # host:port 配列からクラスタ接続
+                startup_nodes = []
+                for n in nodes:
+                    host, port = n.split(":", 1)
+                    startup_nodes.append({"host": host.strip(), "port": int(port)})
+                redis_client = RedisCluster(startup_nodes=startup_nodes, decode_responses=True)  # type: ignore
+            # ヘルス
+            pong = await redis_client.ping()
+            if pong is False:
+                raise RuntimeError("Redis Cluster ping failed")
+            redis_success = True
+        elif mode == "sentinel" and ai_sentinel is not None:
+            sentinels = getattr(settings, "redis_sentinels", []) or []
+            if not sentinels:
+                raise RuntimeError("REDIS_SENTINELS is required for sentinel mode")
+            sentinel_addrs: List[TTuple[str, int]] = []
+            for s in sentinels:
+                host, port = s.split(":", 1)
+                sentinel_addrs.append((host.strip(), int(port)))
+            service_name = getattr(settings, "redis_sentinel_service", "mymaster")
+            sentinel = ai_sentinel.Sentinel(sentinel_addrs, socket_timeout=1)  # type: ignore
+            redis_client = sentinel.master_for(service_name, decode_responses=True)  # type: ignore
+            pong = await redis_client.ping()
+            if pong is False:
+                raise RuntimeError("Redis Sentinel ping failed")
+            redis_success = True
+        else:
+            # standalone（既定）
+            redis_client = await redis.from_url(
+                REDIS_URL,
+                encoding="utf-8",
+                decode_responses=True
+            )
+            await redis_client.ping()
+            redis_success = True
     except Exception as e:
         print(f"Redis initialization failed: {e}")
         redis_success = False

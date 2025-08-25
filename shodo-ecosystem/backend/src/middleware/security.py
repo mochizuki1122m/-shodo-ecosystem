@@ -14,91 +14,12 @@ from ..core.config import settings
 logger = logging.getLogger(__name__)
 
 class LegacyRateLimitMiddleware(BaseHTTPMiddleware):
-    """[DEPRECATED] 旧レート制限ミドルウェア（使用禁止）
-    統一実装は `middleware/rate_limit.py` を利用し、`main*.py` で追加してください。
-    このクラスは後方互換のため残置されています。
+    """[REMOVED] 旧レート制限ミドルウェア
+    本ミドルウェアは統一実装 `middleware/rate_limit.py` に置き換えられました。
+    誤用防止のため、初期化時に例外を送出します。
     """
-    
-    def __init__(self, app, requests_per_minute: int = 60, requests_per_hour: int = 1000):
-        super().__init__(app)
-        self.requests_per_minute = requests_per_minute
-        self.requests_per_hour = requests_per_hour
-        self.request_counts: Dict[str, Dict] = {}
-    
-    def get_client_id(self, request: Request) -> str:
-        """クライアント識別子を取得"""
-        # IPアドレスとユーザーエージェントの組み合わせ
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            client_ip = forwarded_for.split(",")[0].strip()
-        else:
-            client_ip = request.client.host if request.client else "unknown"
-        
-        user_agent = request.headers.get("User-Agent", "unknown")
-        client_id = hashlib.md5(f"{client_ip}:{user_agent}".encode()).hexdigest()
-        return client_id
-    
-    def is_rate_limited(self, client_id: str) -> bool:
-        """レート制限チェック"""
-        current_time = time.time()
-        
-        if client_id not in self.request_counts:
-            self.request_counts[client_id] = {
-                "minute_count": 0,
-                "minute_reset": current_time + 60,
-                "hour_count": 0,
-                "hour_reset": current_time + 3600
-            }
-        
-        client_data = self.request_counts[client_id]
-        
-        # 分単位のリセット
-        if current_time > client_data["minute_reset"]:
-            client_data["minute_count"] = 0
-            client_data["minute_reset"] = current_time + 60
-        
-        # 時間単位のリセット
-        if current_time > client_data["hour_reset"]:
-            client_data["hour_count"] = 0
-            client_data["hour_reset"] = current_time + 3600
-        
-        # レート制限チェック
-        if client_data["minute_count"] >= self.requests_per_minute:
-            return True
-        if client_data["hour_count"] >= self.requests_per_hour:
-            return True
-        
-        # カウントを増やす
-        client_data["minute_count"] += 1
-        client_data["hour_count"] += 1
-        
-        return False
-    
-    async def dispatch(self, request: Request, call_next):
-        """リクエスト処理"""
-        # ヘルスチェックは除外
-        if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
-            return await call_next(request)
-        
-        client_id = self.get_client_id(request)
-        
-        if self.is_rate_limited(client_id):
-            logger.warning(f"Rate limit exceeded for client: {client_id}")
-            return JSONResponse(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"detail": "Rate limit exceeded. Please try again later."}
-            )
-        
-        response = await call_next(request)
-        
-        # レート制限情報をヘッダーに追加
-        client_data = self.request_counts.get(client_id, {})
-        response.headers["X-RateLimit-Limit-Minute"] = str(self.requests_per_minute)
-        response.headers["X-RateLimit-Remaining-Minute"] = str(
-            max(0, self.requests_per_minute - client_data.get("minute_count", 0))
-        )
-        
-        return response
+    def __init__(self, app, *args, **kwargs):
+        raise RuntimeError("LegacyRateLimitMiddleware is removed. Use RateLimitMiddleware instead.")
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """セキュリティヘッダーミドルウェア"""
@@ -107,10 +28,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         """セキュリティヘッダーを追加"""
         response = await call_next(request)
         
-        # セキュリティヘッダー
+        # セキュリティヘッダー（最新推奨）
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # X-XSS-Protection は現行ブラウザでは非推奨のため付与しない
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         connect_src = " ".join(settings.csp_connect_src)
         response.headers["Content-Security-Policy"] = (
@@ -122,6 +43,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             f"connect-src {connect_src}; "
             "frame-ancestors 'none'; "
             "base-uri 'self'"
+        )
+        # Permissions-Policy（サンプル。必要に応じて有効化域を調整）
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(), fullscreen=(self)"
         )
         
         return response

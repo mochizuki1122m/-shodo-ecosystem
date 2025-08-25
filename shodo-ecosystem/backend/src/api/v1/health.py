@@ -16,7 +16,11 @@ async def check_vllm() -> bool:
     """vLLMサーバー接続チェック"""
     try:
         vllm_url = os.getenv("VLLM_URL", "http://vllm:8001")
-        async with httpx.AsyncClient() as client:
+        headers = {}
+        token = os.getenv("AI_INTERNAL_TOKEN")
+        if token:
+            headers["X-Internal-Token"] = token
+        async with httpx.AsyncClient(headers=headers) as client:
             response = await client.get(f"{vllm_url}/health", timeout=5.0)
             return response.status_code == 200
     except Exception:

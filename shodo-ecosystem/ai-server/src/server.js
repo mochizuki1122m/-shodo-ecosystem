@@ -103,6 +103,7 @@ fastify.get('/metrics', async (request, reply) => {
 // 推論エンジンの選択
 const INFERENCE_ENGINE = process.env.INFERENCE_ENGINE || 'ollama';
 const MODEL_NAME = process.env.MODEL_NAME || 'llama2:7b-chat';
+const AI_INTERNAL_TOKEN = process.env.AI_INTERNAL_TOKEN || '';
 
 // Ollama クライアント
 const ollama = new Ollama({
@@ -153,6 +154,24 @@ fastify.get('/health', async (request, reply) => {
     model: MODEL_NAME,
     timestamp: new Date().toISOString(),
   };
+});
+
+// ===== Internal auth for /v1/* (except public endpoints) =====
+fastify.addHook('onRequest', async (request, reply) => {
+  try {
+    const path = request.raw.url || request.url;
+    const isV1 = path.startsWith('/v1/');
+    const publicPaths = ['/v1/models'];
+    if (AI_INTERNAL_TOKEN && isV1 && !publicPaths.includes(path)) {
+      const headerToken = request.headers['x-internal-token'];
+      const auth = request.headers['authorization'] || '';
+      const bearer = auth.startsWith('Bearer ') ? auth.split(' ')[1] : undefined;
+      const provided = headerToken || bearer;
+      if (!provided || provided !== AI_INTERNAL_TOKEN) {
+        return reply.code(403).send({ detail: 'Forbidden' });
+      }
+    }
+  } catch {}
 });
 
 // モデル一覧

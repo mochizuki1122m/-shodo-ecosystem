@@ -388,6 +388,14 @@ curl http://localhost/health
 - CSRF: `CSRF_COOKIE_SECURE=true`。Double Submit Cookie パターンを実装済み。
 - 可視ログイン: 本番は強制 headless。セッションは暗号化保存され、短TTLです。
 
+#### 追加: 運用Runbookの補強
+- Redis HA: `REDIS_MODE` に `standalone|sentinel|cluster` を指定可能。`sentinel` は `REDIS_SENTINELS=host1:26379,host2:26379` と `REDIS_SENTINEL_SERVICE=mymaster` を設定。`cluster` は `REDIS_CLUSTER_NODES=host1:6379,host2:6379` を設定。
+- 外部到達性ヘルスチェック: 閉域環境では `HEALTHCHECK_EXTERNAL_ENABLED=false` を設定し、`services/health_checker.py` の外部チェックを抑止。
+- AI内部通信の認証: バックエンド→AIサーバは `AI_INTERNAL_TOKEN` を設定し、AI側で `/v1/*` へのアクセスに `X-Internal-Token` もしくは `Authorization: Bearer <token>` を要求します。
+- Nginx強化: `limit_conn` による同時接続制限、`set_real_ip_from` によるクライアントIP復元、`/metrics` へのIP制限を有効化。実環境のIPレンジに合わせて調整してください。
+- Cookie方針: フロントはCookieベースで統一。`SameSite` と `Secure` はデプロイ形態（同一サイト/サブドメイン）に応じて設定し、`Domain` は明示指定を推奨。
+- 鍵管理: `JWT_PRIVATE_KEY/JWT_PUBLIC_KEY/SECRET_KEY/ENCRYPTION_KEY/AUDIT_SIGNING_KEY` はVault/KMS管理と定期ローテーションを実施。Readinessで未ロード時はトラフィック受け入れ拒否（503）。
+
 ## セキュリティ機能
 
 ### LPR（Limited Proxy Rights）システム

@@ -517,9 +517,13 @@ class PerfectIntegrationAPI:
         if self.mcp_engine is None:
             # LLMクライアントの初期化
             import openai
+            headers = {}
+            if getattr(settings, 'ai_internal_token', None):
+                headers = {"X-Internal-Token": settings.ai_internal_token}
             llm_client = openai.AsyncOpenAI(
                 base_url=settings.vllm_url + "/v1",
-                api_key="dummy"
+                api_key="dummy",
+                default_headers=headers,
             )
             
             # エンジンの初期化

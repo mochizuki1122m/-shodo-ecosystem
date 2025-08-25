@@ -1,3 +1,9 @@
+def test_rate_limit_headers_present(client):
+    # 何度か叩いてレートヘッダが付与されることを確認
+    for _ in range(3):
+        resp = client.get("/health")
+        assert resp.status_code in (200, 503)
+    assert any(h.startswith("X-RateLimit-") for h in resp.headers.keys())
 """
 LPRシステムの包括的なテスト
 

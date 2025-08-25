@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://redis:6379", env="REDIS_URL")
     redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
     redis_decode_responses: bool = Field(default=True, env="REDIS_DECODE_RESPONSES")
+    # Redis HA/モード設定
+    redis_mode: str = Field(default="standalone", env="REDIS_MODE")  # standalone/sentinel/cluster
+    redis_sentinels: List[str] = Field(default_factory=list, env="REDIS_SENTINELS")  # host:port,host:port
+    redis_sentinel_service: str = Field(default="mymaster", env="REDIS_SENTINEL_SERVICE")
+    redis_cluster_nodes: List[str] = Field(default_factory=list, env="REDIS_CLUSTER_NODES")  # host:port,host:port
     
     # AIサーバー設定（ベースURLのみ、パスなし）
     vllm_url: str = Field(default="http://vllm:8001", env="VLLM_URL")
@@ -154,6 +159,9 @@ class Settings(BaseSettings):
     metrics_enabled: bool = Field(default=True, env="METRICS_ENABLED")
     otlp_endpoint: Optional[str] = Field(default=None, env="OTLP_ENDPOINT")
 
+    # ヘルスチェック外部依存の有効化（閉域環境でのDEGRADED回避用）
+    health_external_check_enabled: bool = Field(default=False, env="HEALTHCHECK_EXTERNAL_ENABLED")
+
     # 機能フラグ
     feature_lpr_enabled: bool = Field(default=True, env="FEATURE_LPR_ENABLED")
     feature_nlp_enabled: bool = Field(default=True, env="FEATURE_NLP_ENABLED")
@@ -223,6 +231,8 @@ class Settings(BaseSettings):
         def parse_env_var(cls, field_name: str, raw_val: str):
             if field_name in ("cors_origins", "trusted_hosts", "csp_connect_src"):
                 return [x.strip() for x in raw_val.split(",")]
+            if field_name in ("redis_sentinels", "redis_cluster_nodes"):
+                return [x.strip() for x in raw_val.split(",") if x.strip()]
             if field_name in ("rate_limit_endpoint_limits",):
                 try:
                     return json.loads(raw_val)
