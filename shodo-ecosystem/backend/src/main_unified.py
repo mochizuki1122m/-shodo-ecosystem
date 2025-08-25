@@ -33,6 +33,7 @@ if not LIGHT_TESTS:
 
 # モニタリング
 from .monitoring.metrics import get_metrics, get_metrics_json
+from .schemas.base import BaseResponse
 
 # Celery（LIGHT_TESTSでは読み込まない）
 if not LIGHT_TESTS:
@@ -103,13 +104,18 @@ if not LIGHT_TESTS:
 # ヘルスチェック
 @app.get("/health")
 async def health_check():
-	"""ヘルスチェックエンドポイント"""
+	"""ヘルスチェックエンドポイント（統一形式）"""
 	connections = await check_all_connections()
-	return {
-		"status": connections["overall"],
+	data = {
+		"status": connections.get("overall"),
 		"version": "1.0.0",
-		"connections": connections
+		"environment": os.getenv("ENVIRONMENT", "development"),
+		"components": {
+			"database": {"status": "healthy" if connections.get("postgres") else "unhealthy"},
+			"redis": {"status": "healthy" if connections.get("redis") else "degraded"},
+		}
 	}
+	return BaseResponse(success=data["status"] != "unhealthy", data=data)
 
 # ルートエンドポイント
 @app.get("/")

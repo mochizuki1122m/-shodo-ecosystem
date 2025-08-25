@@ -219,37 +219,34 @@ app.include_router(preview.router)
 # ===== ヘルスチェック =====
 
 @app.get("/health")
-async def health_check() -> Dict[str, Any]:
-    """包括的ヘルスチェックエンドポイント"""
-    from .services.health_checker import health_checker
-    
-    try:
-        # 包括的ヘルスチェック実行
-        health_result = await health_checker.run_all_checks()
-        
-        # LPRシステムの状態を追加
-        health_result["components"]["lpr_system"] = {
-            "status": "healthy",
-            "response_time_ms": 0,
-            "details": {
-                "lpr_service": "healthy",
-                "audit_logger": "healthy",
-                "visible_login": "healthy",
-            },
-            "last_checked": health_result["timestamp"]
-        }
-        
-        return health_result
-        
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "timestamp": time.time(),
-            "error": str(e),
-            "version": settings.app_version,
-            "environment": settings.environment
-        }
+async def health_check() -> dict:
+	"""包括的ヘルスチェックエンドポイント（統一レスポンス）"""
+	from .services.health_checker import health_checker
+	from .schemas.base import BaseResponse
+	try:
+		# 包括的ヘルスチェック実行
+		health_result = await health_checker.run_all_checks()
+		# LPRシステムの状態を追加
+		health_result["components"]["lpr_system"] = {
+			"status": "healthy",
+			"response_time_ms": 0,
+			"details": {
+				"lpr_service": "healthy",
+				"audit_logger": "healthy",
+				"visible_login": "healthy",
+			},
+			"last_checked": health_result["timestamp"]
+		}
+		return BaseResponse(success=health_result.get("status") != "unhealthy", data=health_result).dict()
+	except Exception as e:
+		logger.error(f"Health check failed: {e}")
+		return BaseResponse(success=False, data={
+			"status": "unhealthy",
+			"timestamp": time.time(),
+			"error": str(e),
+			"version": settings.app_version,
+			"environment": settings.environment
+		}).dict()
 
 @app.get("/health/simple")
 async def simple_health_check() -> Dict[str, str]:

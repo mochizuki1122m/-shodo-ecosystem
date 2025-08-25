@@ -248,7 +248,7 @@ app.include_router(preview.router)
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint"""
-    metrics_data = await get_metrics()
+    metrics_data = get_metrics()
     return Response(
         content=metrics_data,
         media_type="text/plain; version=0.0.4; charset=utf-8"

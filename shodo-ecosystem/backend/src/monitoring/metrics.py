@@ -12,6 +12,7 @@ from prometheus_client import (
 )
 import structlog
 from functools import wraps
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = structlog.get_logger()
 
@@ -342,3 +343,25 @@ def init_system_metrics(version: str, environment: str):
         version=version,
         environment=environment
     )
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """HTTPメトリクス収集のStarletteミドルウェア実装"""
+    async def dispatch(self, request, call_next):
+        start_time = time.time()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = getattr(response, 'status_code', 200)
+            return response
+        finally:
+            duration = time.time() - start_time
+            try:
+                MetricsCollector.record_http_request(
+                    method=request.method,
+                    endpoint=request.url.path,
+                    status_code=status_code,
+                    duration=duration
+                )
+            except Exception:
+                # メトリクスが壊れても本処理は妨げない
+                pass

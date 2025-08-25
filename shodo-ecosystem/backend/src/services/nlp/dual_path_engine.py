@@ -58,6 +58,7 @@ class DualPathEngine:
         self.cache_ttl = cache_ttl
         self.fallback_to_rules = fallback_to_rules
         self.engine = getattr(settings, 'inference_engine', 'vllm')
+        self.ai_internal_token = getattr(settings, 'ai_internal_token', None)
         
         # TTL付きキャッシュ（LRU + TTL）
         self.cache = TTLCache(maxsize=1000, ttl=cache_ttl)
@@ -347,12 +348,15 @@ class DualPathEngine:
                         "temperature": 0.3,
                         "stream": False
                     }
+                headers = {
+                    "X-Correlation-ID": get_correlation_id(None)
+                }
+                if self.ai_internal_token:
+                    headers["X-Internal-Token"] = self.ai_internal_token
                 response = await client.post(
                     url,
                     json=payload,
-                    headers={
-                        "X-Correlation-ID": get_correlation_id(None)
-                    },
+                    headers=headers,
                     timeout=5.0
                 )
                 if response.status_code == 200:
