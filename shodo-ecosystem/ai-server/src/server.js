@@ -46,31 +46,35 @@ fastify.addHook('onRequest', async (request, reply) => {
   reply.header('X-Correlation-ID', cid);
 });
 
-// ===== Simple in-memory rate limit (per IP) =====
+// ===== Simple rate limit (toggle by env) =====
+// In production, prefer external (Nginx/Cloud) rate limiting. Enable here only when explicitly configured.
+const RATE_LIMIT_ENABLED = String(process.env.RATE_LIMIT_ENABLED || 'false').toLowerCase() === 'true';
 const RATE_LIMIT_RPM = Number(process.env.RATE_LIMIT_RPM || 120);
 const rateStore = new Map(); // key -> { count, reset }
-fastify.addHook('onRequest', async (request, reply) => {
-  if (RATE_LIMIT_RPM <= 0) return;
-  const ip = (request.headers['x-forwarded-for'] || request.ip || 'unknown').toString().split(',')[0].trim();
-  const now = Date.now();
-  const key = ip;
-  let entry = rateStore.get(key);
-  if (!entry || now > entry.reset) {
-    entry = { count: 0, reset: now + 60_000 };
-    rateStore.set(key, entry);
-  }
-  entry.count += 1;
-  if (entry.count > RATE_LIMIT_RPM) {
-    const retryAfter = Math.ceil((entry.reset - now) / 1000);
-    reply.header('Retry-After', retryAfter.toString());
+if (RATE_LIMIT_ENABLED) {
+  fastify.addHook('onRequest', async (request, reply) => {
+    if (RATE_LIMIT_RPM <= 0) return;
+    const ip = (request.headers['x-forwarded-for'] || request.ip || 'unknown').toString().split(',')[0].trim();
+    const now = Date.now();
+    const key = ip;
+    let entry = rateStore.get(key);
+    if (!entry || now > entry.reset) {
+      entry = { count: 0, reset: now + 60_000 };
+      rateStore.set(key, entry);
+    }
+    entry.count += 1;
+    if (entry.count > RATE_LIMIT_RPM) {
+      const retryAfter = Math.ceil((entry.reset - now) / 1000);
+      reply.header('Retry-After', retryAfter.toString());
+      reply.header('X-RateLimit-Limit', RATE_LIMIT_RPM.toString());
+      reply.header('X-RateLimit-Remaining', '0');
+      reply.header('X-RateLimit-Reset', Math.floor(entry.reset / 1000).toString());
+      return reply.code(429).send({ error: 'rate_limited', message: 'Too many requests' });
+    }
     reply.header('X-RateLimit-Limit', RATE_LIMIT_RPM.toString());
-    reply.header('X-RateLimit-Remaining', '0');
-    reply.header('X-RateLimit-Reset', Math.floor(entry.reset / 1000).toString());
-    return reply.code(429).send({ error: 'rate_limited', message: 'Too many requests' });
-  }
-  reply.header('X-RateLimit-Limit', RATE_LIMIT_RPM.toString());
-  reply.header('X-RateLimit-Remaining', Math.max(0, RATE_LIMIT_RPM - entry.count).toString());
-});
+    reply.header('X-RateLimit-Remaining', Math.max(0, RATE_LIMIT_RPM - entry.count).toString());
+  });
+}
 
 // ===== Prometheus metrics =====
 client.collectDefaultMetrics();

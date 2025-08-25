@@ -7,6 +7,8 @@ import json
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
+from urllib.parse import urlparse
+import fnmatch
 import uuid
 import time
 import asyncio
@@ -540,17 +542,65 @@ class LPRService:
         required: LPRScope,
         granted: List[LPRScope]
     ) -> bool:
-        """Check if required scope is authorized"""
-        
+        """Check if required scope is authorized with strict matching.
+
+        Rules:
+        - HTTP method must match exactly, or granted is "*" (any)
+        - URL pattern is matched against the normalized request path using
+          fnmatch ("*" wildcard). Patterns like "/api/v1/orders/*" only
+          authorize subpaths (segment-aware by normalization).
+        - If a pattern includes scheme/host, the path part is matched and
+          the host must also match when present on both sides.
+        """
+
+        def normalize_path(url_or_path: str) -> str:
+            try:
+                parsed = urlparse(url_or_path)
+                path = parsed.path if parsed.scheme or parsed.netloc else url_or_path
+            except Exception:
+                path = url_or_path
+            if not path:
+                path = "/"
+            # Normalize double slashes and remove trailing slash (except root)
+            while "//" in path:
+                path = path.replace("//", "/")
+            if len(path) > 1 and path.endswith("/"):
+                path = path[:-1]
+            if not path.startswith("/"):
+                path = "/" + path
+            return path
+
+        def hosts_match(req: str, patt: str) -> bool:
+            r = urlparse(req)
+            p = urlparse(patt)
+            # If pattern specifies a host, require match; otherwise ignore host.
+            if p.netloc:
+                return (r.netloc or "") == p.netloc
+            return True
+
+        req_path = normalize_path(required.url_pattern)
+
         for scope in granted:
-            # Check method match
-            if scope.method != required.method and scope.method != "*":
+            # Method check
+            if scope.method != "*" and scope.method.upper() != required.method.upper():
                 continue
-            
-            # Check URL pattern match (simple prefix match for now)
-            if required.url_pattern.startswith(scope.url_pattern):
+
+            # Host check (only if pattern specifies host)
+            if not hosts_match(required.url_pattern, scope.url_pattern):
+                continue
+
+            patt_path = normalize_path(scope.url_pattern)
+
+            # Exact or wildcard match using fnmatch
+            if fnmatch.fnmatch(req_path, patt_path):
                 return True
-        
+
+            # Backward-compatible prefix semantics for patterns ending with "/*"
+            if patt_path.endswith("/*"):
+                base = patt_path[:-2]
+                if req_path == base or req_path.startswith(base + "/"):
+                    return True
+
         return False
     
     async def cleanup_expired_tokens(self) -> int:

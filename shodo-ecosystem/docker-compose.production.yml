@@ -62,6 +62,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - NODE_ENV=production
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - RATE_LIMIT_ENABLED=${AI_RATE_LIMIT_ENABLED:-false}
+      - RATE_LIMIT_RPM=${AI_RATE_LIMIT_RPM:-120}
     volumes:
       - ./ai-server/models:/models
       - ./ai-server/logs:/logs
