@@ -128,16 +128,19 @@ Shodoには、システムメトリクスを表示し、運用監視を可能に
 - LPR: 本番はfail-closedを強制（`LPR_FAIL_OPEN=false` 既定）。開発のみ明示的に `LPR_FAIL_OPEN=true` で緩和可能。
 - レート制限: ヒット時にPrometheusメトリクス `rate_limit_hits_total` を記録。
 - AIサーバ: vLLM呼び出しにタイムアウト/指数バックオフ/サーキットブレーカを導入。
-
-必要な環境変数（例）：
-
-```
-REFRESH_TOKEN_TTL_DAYS=14
-REFRESH_COOKIE_NAME=refresh_token
-LPR_FAIL_OPEN=false
-```
+- LPRスコープ厳格化: URL正規化とワイルドカード（`fnmatch`）での厳密照合に変更。メソッド厳密一致、ホスト指定時はホスト整合も検証。
+- NLP/AI正規化: AI応答をPydanticでスキーマ検証し、逸脱時は安全フォールバック。
+- AIサーバのRL切替: `RATE_LIMIT_ENABLED`/`RATE_LIMIT_RPM` 環境変数で内蔵RLの有効/無効を切替（本番は外部レイヤ推奨）。
+- Readiness拡張: 本番時にVault等からロードされた`JWT_PRIVATE_KEY/JWT_PUBLIC_KEY/ENCRYPTION_KEY`の存在を`/health/ready`で検査。
+- Nginx集中RL: `/api/v1/` 経路に厳しめのレート制限を適用、一般`/api/`は標準の制限に分離。
+- フロントのCookie一貫化: `Authorization`ヘッダ依存を排し、`credentials: 'include'`前提に統一。
 
 注意: 本番ではRedisが必須です（リフレッシュ/LPR/レート制限）。
+
+### 本番運用の重要ポイント（追記）
+- AIサーバ内蔵レート制限は既定で無効化。必要時のみ `AI_RATE_LIMIT_ENABLED=true` と `AI_RATE_LIMIT_RPM` を設定してください（既定は外部Nginx/クラウドWAFで集中管理）。
+- Readinessでシークレット未読込の場合は503を返し、トラフィック受け入れを抑止します。
+- `/api/v1/` はNginxで強化レート制限が適用されます。大規模負荷時は値のチューニングを行ってください。
 
 
 Docker Composeを使用して、すべての依存関係を含む完全なShodoエコシステムを実行できます。

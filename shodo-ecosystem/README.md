@@ -612,3 +612,12 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - **Community**: [GitHub Discussions](https://github.com/your-org/shodo-ecosystem/discussions)
 - **Issues**: [GitHub Issues](https://github.com/your-org/shodo-ecosystem/issues)
 - **Enterprise**: [Contact Sales](mailto:enterprise@shodo-ecosystem.com)
+
+## Important changes
+
+- LPR scope enforcement hardened: strict method matching, URL normalization, wildcard matching via fnmatch, and host verification when specified.
+- NLP/AI normalization: AI responses validated against a Pydantic schema with safe fallback on drift.
+- AI server rate-limit toggle: enable internal RL only via `RATE_LIMIT_ENABLED`/`RATE_LIMIT_RPM` (production prefers external Nginx/Cloud RL).
+- Readiness gate for secrets: `/health/ready` checks presence of `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY`/`ENCRYPTION_KEY` in production.
+- Nginx centralized RL: stronger limits for `/api/v1/`, standard limits for other `/api/` endpoints.
+- Frontend cookie consistency: removed Authorization header dependency; use `credentials: 'include'` consistently.
