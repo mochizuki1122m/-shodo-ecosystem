@@ -13,7 +13,6 @@ function hasCookie(name: string): boolean {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const token = localStorage.getItem('access_token');
   const hasAccessCookie = hasCookie('access_token');
 
   // 明示的フラグでバイパス（開発時のみに使用）
@@ -22,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  if (!isAuthenticated && !token && !hasAccessCookie) {
+  if (!isAuthenticated && !hasAccessCookie) {
     return <Navigate to="/login" replace />;
   }
 

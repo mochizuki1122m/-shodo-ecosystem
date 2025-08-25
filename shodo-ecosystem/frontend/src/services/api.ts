@@ -16,13 +16,9 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match.split('=')[1]) : null;
 }
 
-// リクエストインターセプター（認証トークン/CSRFトークンの追加）
+// リクエストインターセプター（CSRFトークンの追加。認証はHttpOnly Cookieに統一）
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     const csrfCookieName = (process.env.REACT_APP_CSRF_COOKIE_NAME || 'csrf_token');
     const csrfHeaderName = (process.env.REACT_APP_CSRF_HEADER_NAME || 'X-CSRF-Token');
     const csrfToken = getCookie(csrfCookieName);
@@ -39,8 +35,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // 認証エラーの場合はログイン画面へリダイレクト
-      localStorage.removeItem('access_token');
+      // 認証エラーの場合はログイン画面へリダイレクト（Cookieはサーバ側で失効）
       window.location.href = '/login';
     }
     return Promise.reject(error);

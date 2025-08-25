@@ -501,9 +501,7 @@ export const LPRTokenManager: React.FC = () => {
     setLoading(true);
     try {
       const response = await fetch('/api/v1/lpr/list', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
+        credentials: 'include'
       });
       const data = await response.json();
       setTokens(data.tokens || []);
@@ -520,8 +518,8 @@ export const LPRTokenManager: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           jti,
           reason: 'User requested revocation',
