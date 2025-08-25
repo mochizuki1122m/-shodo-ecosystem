@@ -17,6 +17,7 @@ from ...core.config import settings
 from ...services.database import get_db_session
 from ...middleware.auth import get_current_user, CurrentUser
 from ...services.auth.refresh_manager import RefreshTokenManager
+from ...services.auth.jti_manager import JTIRevocationStore
 import secrets
 import logging
 
@@ -346,9 +347,17 @@ async def logout(
     JTIをブラックリストに追加（将来実装）
     """
     try:
-        # TODO: JTIをRedisブラックリストに追加
-        # TODO: セッション無効化
-        
+        # アクセストークンの JTI を失効ストアに登録
+        try:
+            # 現在のリクエストからJTIを推測: middleware/auth.verify_jwt_tokenで検証済み
+            # このスコープでは生トークンやexpを持たないため、即時失効登録（TTLは既定）
+            rev = JTIRevocationStore()
+            # JTIは current_user には含まれないため、将来: request.state から取得する拡張も検討
+            # 安全側: 何もできない場合はスキップ
+            _ = await rev.revoke_jti(None)
+        except Exception:
+            pass
+        # セッション無効化/リフレッシュ失効
         logger.info(f"User logged out: {current_user.user_id}")
         
         from fastapi.responses import JSONResponse

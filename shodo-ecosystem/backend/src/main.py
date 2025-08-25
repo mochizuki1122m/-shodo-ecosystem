@@ -224,19 +224,8 @@ async def health_check() -> dict:
 	from .services.health_checker import health_checker
 	from .schemas.base import BaseResponse
 	try:
-		# 包括的ヘルスチェック実行
+		# 包括的ヘルスチェック実行（実測）
 		health_result = await health_checker.run_all_checks()
-		# LPRシステムの状態を追加
-		health_result["components"]["lpr_system"] = {
-			"status": "healthy",
-			"response_time_ms": 0,
-			"details": {
-				"lpr_service": "healthy",
-				"audit_logger": "healthy",
-				"visible_login": "healthy",
-			},
-			"last_checked": health_result["timestamp"]
-		}
 		return BaseResponse(success=health_result.get("status") != "unhealthy", data=health_result).dict()
 	except Exception as e:
 		logger.error(f"Health check failed: {e}")
