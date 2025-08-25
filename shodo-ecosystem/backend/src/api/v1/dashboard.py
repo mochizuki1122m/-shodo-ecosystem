@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 import random
 from .auth import get_current_user
+from ...middleware.auth import require_roles
 
 router = APIRouter()
 
@@ -161,7 +162,7 @@ async def get_service_status(
 @router.post("/services/{service_id}/connect")
 async def connect_service(
     service_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_roles(["admin"]))
 ):
     """サービスの接続"""
     
@@ -180,7 +181,7 @@ async def connect_service(
 @router.post("/services/{service_id}/disconnect")
 async def disconnect_service(
     service_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_roles(["admin"]))
 ):
     """サービスの切断"""
     

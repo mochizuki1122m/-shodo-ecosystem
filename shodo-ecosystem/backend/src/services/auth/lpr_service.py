@@ -294,11 +294,19 @@ class LPRService:
                 )
                 await self.redis.sadd(f"lpr:user:{user_id}:tokens", jti)
             except Exception as e:
-                logger.warning("Redis error storing token meta, falling back to memory", error=str(e))
+                # 本番ではフォールバック禁止
+                if settings.is_production():
+                    logger.error("Failed to store LPR token meta in Redis (production)", error=str(e))
+                    raise RuntimeError("Redis unavailable for LPR in production")
+                logger.warning("Redis error storing token meta, using in-memory fallback (non-prod)", error=str(e))
                 self._memory_tokens[jti] = token_meta
                 self._user_tokens.setdefault(user_id, set()).add(jti)
         else:
-            # Memory fallback
+            # 本番ではフォールバック禁止
+            if settings.is_production():
+                logger.error("Redis not connected for LPR in production")
+                raise RuntimeError("Redis required for LPR in production")
+            # Memory fallback (development/testing)
             self._memory_tokens[jti] = token_meta
             self._user_tokens.setdefault(user_id, set()).add(jti)
         
@@ -359,9 +367,12 @@ class LPRService:
                             revoked = True
                 except Exception as e:
                     logger.warning("Redis error during verify, falling back to memory", error=str(e))
-            # Memory fallback revocation check
+            # Memory fallback revocation check（本番は禁止）
             now_ts = self._now_ts()
             if (not self.redis) or (revoked is False):
+                if settings.is_production():
+                    logger.error("LPR verification denied: Redis unavailable in production")
+                    raise JWTError("Revocation check unavailable")
                 exp_ts = self._revoked_jtis.get(jti)
                 if exp_ts and exp_ts > now_ts:
                     revoked = True
@@ -457,10 +468,13 @@ class LPRService:
                 if user_id:
                     await self.redis.srem(f"lpr:user:{user_id}:tokens", jti)
             except Exception as e:
-                logger.warning("Redis error during revocation, using memory fallback", error=str(e))
-                # Memory fallback below
-                pass
-        # Memory fallback
+                if settings.is_production():
+                    logger.error("LPR revocation failed: Redis error in production", error=str(e))
+                    return False
+                logger.warning("Redis error during revocation, using memory fallback (non-prod)", error=str(e))
+        # Memory fallback（本番は禁止）
+        if settings.is_production():
+            return False
         now = self._now_ts()
         self._revoked_jtis[jti] = now + 3600
         meta = self._memory_tokens.get(jti)

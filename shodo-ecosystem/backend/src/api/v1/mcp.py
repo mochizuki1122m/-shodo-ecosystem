@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from .auth import get_current_user
+from ...middleware.auth import require_roles
 
 router = APIRouter()
 
@@ -221,7 +222,7 @@ async def get_tool_info(
 async def invoke_tool(
     tool_id: str,
     invocation: ToolInvocation,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_roles(["admin", "operator"]))
 ):
     """ツールの実行"""
     
@@ -338,7 +339,7 @@ async def get_tool_categories(current_user: dict = Depends(get_current_user)):
 @router.post("/batch")
 async def batch_invoke_tools(
     invocations: List[ToolInvocation],
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_roles(["admin", "operator"]))
 ):
     """複数ツールのバッチ実行"""
     

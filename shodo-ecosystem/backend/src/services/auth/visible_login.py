@@ -82,8 +82,10 @@ class VisibleLoginDetector:
         self.playwright = await async_playwright().start()
         
         # セキュリティ設定を含むブラウザ起動
+        # 本番はheadlessを強制
+        enforced_headless = True if __import__("os").getenv("ENVIRONMENT", "development").lower() == "production" else headless
         self.browser = await self.playwright.chromium.launch(
-            headless=headless,
+            headless=enforced_headless,
             args=[
                 '--disable-blink-features=AutomationControlled',
                 '--disable-dev-shm-usage',
@@ -92,7 +94,7 @@ class VisibleLoginDetector:
             ]
         )
         
-        logger.info("Visible browser started", headless=headless)
+        logger.info("Visible browser started", headless=enforced_headless)
     
     async def stop(self):
         """ブラウザを停止"""
@@ -366,6 +368,8 @@ class SecureSessionStorage:
     
     def __init__(self):
         self.storage: Dict[str, Dict] = {}  # メモリ内保存（一時的）
+        from ...core.config import settings as _settings
+        self._secret = _settings.encryption_key.get_secret_value() if hasattr(_settings, 'encryption_key') else None
     
     async def store_session(
         self,
@@ -377,12 +381,26 @@ class SecureSessionStorage:
         
         session_id = secrets.token_urlsafe(32)
         
-        # セッションデータを暗号化して保存（実装簡略化のため平文）
-        self.storage[session_id] = {
+        # セッションデータを暗号化して保存
+        payload = {
             'user_id': user_id,
             'cookies': cookies,
             'expires_at': datetime.now(timezone.utc).timestamp() + ttl_seconds,
         }
+        try:
+            if self._secret:
+                import json, base64
+                from cryptography.fernet import Fernet
+                # KDF省略: ここでは既に十分に強い鍵が与えられている前提
+                key = base64.urlsafe_b64encode(hashlib.sha256(self._secret.encode()).digest())
+                f = Fernet(key)
+                enc = f.encrypt(json.dumps(payload).encode('utf-8'))
+                self.storage[session_id] = {'ciphertext': enc.decode('utf-8')}
+            else:
+                self.storage[session_id] = payload
+        except Exception as e:
+            logger.warning("Session encryption failed, storing plaintext (non-prod)", error=str(e))
+            self.storage[session_id] = payload
         
         # 期限切れセッションをクリーンアップ
         await self._cleanup_expired()
@@ -397,6 +415,19 @@ class SecureSessionStorage:
         
         if not session:
             return None
+        
+        # 復号
+        if 'ciphertext' in session:
+            try:
+                import json, base64
+                from cryptography.fernet import Fernet
+                key = base64.urlsafe_b64encode(hashlib.sha256(self._secret.encode()).digest())
+                f = Fernet(key)
+                data = json.loads(f.decrypt(session['ciphertext'].encode('utf-8')).decode('utf-8'))
+                session = data
+            except Exception as e:
+                logger.error("Failed to decrypt session", error=str(e))
+                return None
         
         # 期限チェック
         if datetime.now(timezone.utc).timestamp() > session['expires_at']:
@@ -419,10 +450,20 @@ class SecureSessionStorage:
         """期限切れセッションをクリーンアップ"""
         
         now = datetime.now(timezone.utc).timestamp()
-        expired = [
-            sid for sid, data in self.storage.items()
-            if data['expires_at'] < now
-        ]
+        expired = []
+        for sid, data in list(self.storage.items()):
+            try:
+                payload = data
+                if 'ciphertext' in data and self._secret:
+                    import json, base64
+                    from cryptography.fernet import Fernet
+                    key = base64.urlsafe_b64encode(hashlib.sha256(self._secret.encode()).digest())
+                    f = Fernet(key)
+                    payload = json.loads(f.decrypt(data['ciphertext'].encode('utf-8')).decode('utf-8'))
+                if payload.get('expires_at', 0) < now:
+                    expired.append(sid)
+            except Exception:
+                expired.append(sid)
         
         for sid in expired:
             del self.storage[sid]

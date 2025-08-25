@@ -28,7 +28,7 @@ from ...services.audit.audit_logger import (
     AuditEventType,
     AuditSeverity,
 )
-from ...middleware.auth import get_current_user
+from ...middleware.auth import get_current_user, require_roles
 from ...schemas.base import BaseResponse, error_response
 
 # 構造化ログ
@@ -599,7 +599,7 @@ async def batch_revoke_tokens(
 
 @router.get("/audit-log")
 async def get_audit_log(
-    current_user: Dict = Depends(get_current_user),
+    current_user: Dict = Depends(require_roles(["admin"])),
     event_type: Optional[str] = Query(None, description="イベントタイプ"),
     correlation_id: Optional[str] = Query(None, description="相関ID"),
     limit: int = Query(100, ge=1, le=1000, description="取得件数"),
