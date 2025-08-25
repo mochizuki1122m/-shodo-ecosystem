@@ -235,6 +235,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # 本番で/metricsを外部へ公開しないための明示的フラグ（例）
+      - METRICS_PUBLIC_EXPOSE=false
     networks:
       - shodo-network
     depends_on:

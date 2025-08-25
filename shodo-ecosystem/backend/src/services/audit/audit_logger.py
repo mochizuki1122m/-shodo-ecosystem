@@ -13,6 +13,8 @@ import structlog
 
 from ...core.config import settings
 from ...services.database import get_redis
+import os
+import asyncio
 
 logger = structlog.get_logger()
 
@@ -67,6 +69,11 @@ class AuditLogger:
         self.signing_key = settings.secret_key.get_secret_value().encode()
         self.chain_hash = None  # For hash chaining
         self.redis = get_redis()
+        # S3/Glacier等の長期保管用設定（任意）
+        self.s3_bucket = os.getenv("AUDIT_S3_BUCKET")
+        self.s3_prefix = os.getenv("AUDIT_S3_PREFIX", "audit/")
+        self.s3_enabled = bool(self.s3_bucket)
+        self._s3_client = None
     
     async def log(
         self,
@@ -386,11 +393,43 @@ class AuditLogger:
             # 権限等の問題で書けない場合は標準出力に出す
             logger.error("Failed to persist audit log to file; emitting to stdout")
             print(json.dumps(entry))
+
+        # 非同期でS3へアップロード（バッファリングは簡易にファイル単位）
+        if self.s3_enabled:
+            await self._upload_to_s3(entry)
     
     async def _send_to_siem(self, entry: Dict):
         """Send to SIEM system"""
         # Implementation for SIEM integration
         # e.g., Splunk, ELK, Datadog
+
+    async def _get_s3_client(self):
+        if self._s3_client is None:
+            try:
+                import boto3
+                from botocore.config import Config as BotoConfig
+                # Note: ランタイムロール/ENVの認証情報を利用
+                self._s3_client = boto3.client("s3", config=BotoConfig(retries={"max_attempts": 3}))
+            except Exception as e:
+                logger.error("Failed to init S3 client", error=str(e))
+                self._s3_client = None
+        return self._s3_client
+
+    async def _upload_to_s3(self, entry: Dict):
+        try:
+            s3 = await asyncio.get_event_loop().run_in_executor(None, self._get_s3_client)
+            if callable(s3):
+                s3 = await s3()
+            if not s3:
+                return
+            key = f"{self.s3_prefix}{entry['id']}.json"
+            body = json.dumps(entry).encode("utf-8")
+            # boto3は同期I/Oのためスレッドエグゼキュータで実行
+            def _put():
+                s3.put_object(Bucket=self.s3_bucket, Key=key, Body=body, ContentType="application/json")
+            await asyncio.get_event_loop().run_in_executor(None, _put)
+        except Exception as e:
+            logger.error("Failed to upload audit entry to S3", error=str(e))
 
 # Singleton instance
 audit_logger = None

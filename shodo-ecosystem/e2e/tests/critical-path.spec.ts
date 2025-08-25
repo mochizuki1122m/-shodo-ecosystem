@@ -110,12 +110,13 @@ test.describe('Critical User Journey', () => {
   });
 
   test('LPR token issuance and verification', async ({ page, request, context }) => {
-    // Authenticate
+    // Authenticate (HttpOnly Cookie is expected from real login; here we simulate minimal cookie presence)
     await context.addCookies([{
       name: 'access_token',
       value: 'test-token',
       domain: 'localhost',
-      path: '/'
+      path: '/',
+      httpOnly: true
     }]);
     
     // Generate device fingerprint

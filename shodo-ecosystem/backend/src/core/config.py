@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
     jwt_public_key: Optional[str] = Field(default=None, env="JWT_PUBLIC_KEY")
     jwt_private_key: Optional[str] = Field(default=None, env="JWT_PRIVATE_KEY")
+    jwt_public_key_path: Optional[str] = Field(default=None, env="JWT_PUBLIC_KEY_PATH")
+    jwt_private_key_path: Optional[str] = Field(default=None, env="JWT_PRIVATE_KEY_PATH")
     jwt_audience: str = Field(default="shodo-ecosystem", env="JWT_AUDIENCE")
     jwt_issuer: str = Field(default="shodo-auth", env="JWT_ISSUER")
     jwt_expiration_hours: int = Field(default=1, env="JWT_EXPIRATION_HOURS")
@@ -186,8 +188,10 @@ class Settings(BaseSettings):
             if self.jwt_algorithm.upper() != "RS256":
                 self.jwt_algorithm = "RS256"
             # 鍵が無ければ起動失敗
-            if not self.jwt_private_key or not self.jwt_public_key:
-                raise ValueError("JWT keys are required in production (JWT_PRIVATE_KEY, JWT_PUBLIC_KEY)")
+            if not self.jwt_private_key and not self.jwt_private_key_path:
+                raise ValueError("JWT private key required (JWT_PRIVATE_KEY or JWT_PRIVATE_KEY_PATH)")
+            if not self.jwt_public_key and not self.jwt_public_key_path:
+                raise ValueError("JWT public key required (JWT_PUBLIC_KEY or JWT_PUBLIC_KEY_PATH)")
             # 既定の脆弱なキーが残っていれば失敗
             weak = "change-this-in-production-to-a-secure-random-string"
             if self.secret_key.get_secret_value() == weak or self.jwt_secret_key.get_secret_value() == weak or self.encryption_key.get_secret_value() == weak:

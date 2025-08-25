@@ -46,6 +46,23 @@ fastify.addHook('onRequest', async (request, reply) => {
   reply.header('X-Correlation-ID', cid);
 });
 
+// ===== Internal auth for /v1/* (allow health/metrics/models) =====
+const AI_INTERNAL_TOKEN = process.env.AI_INTERNAL_TOKEN;
+fastify.addHook('onRequest', async (request, reply) => {
+  try {
+    const path = request.url || '';
+    const isPublic = path === '/health' || path === '/metrics' || path === '/v1/models';
+    if (isPublic) return;
+    if (path.startsWith('/v1/')) {
+      if (!AI_INTERNAL_TOKEN) return; // no-op in dev if not configured
+      const token = request.headers['x-internal-token'];
+      if (!token || token !== AI_INTERNAL_TOKEN) {
+        return reply.code(403).send({ error: 'forbidden', message: 'Internal token required' });
+      }
+    }
+  } catch {}
+});
+
 // ===== Simple in-memory rate limit (per IP) =====
 const RATE_LIMIT_RPM = Number(process.env.RATE_LIMIT_RPM || 120);
 const rateStore = new Map(); // key -> { count, reset }

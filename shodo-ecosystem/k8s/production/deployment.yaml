@@ -7,6 +7,38 @@ metadata:
     environment: production
 
 ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shodo-backend-deny-all-external
+  namespace: shodo
+spec:
+  podSelector:
+    matchLabels:
+      app: shodo-backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: shodo-frontend
+    - namespaceSelector:
+        matchLabels:
+          name: shodo
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: shodo
+    - ipBlock:
+        cidr: 0.0.0.0/0
+      ports:
+      - protocol: TCP
+        port: 443
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,6 +67,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
+        # OpenTelemetry sidecar/agent例（実環境に合わせて調整）
+        # sidecar.opentelemetry.io/inject: "true"
     spec:
       serviceAccountName: shodo-backend
       securityContext:
@@ -87,6 +121,11 @@ spec:
             configMapKeyRef:
               name: shodo-vault-config
               key: VAULT_ADDR
+        - name: OTLP_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: otel-collector
+              key: endpoint
         
         envFrom:
         - secretRef:

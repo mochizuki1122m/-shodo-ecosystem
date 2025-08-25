@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr, Field, validator
 from passlib.context import CryptContext
 from jose import jwt
+from pathlib import Path
 
 from ...schemas.base import BaseResponse
 from ...core.config import settings
@@ -126,8 +127,13 @@ def create_access_token(
     algorithm = getattr(settings, 'jwt_algorithm', 'HS256')
     
     if algorithm == 'RS256':
-        # 本番: RS256 with private key
+        # 本番: RS256 with private key (env value or file path)
         private_key = getattr(settings, 'jwt_private_key', None)
+        if not private_key and getattr(settings, 'jwt_private_key_path', None):
+            try:
+                private_key = Path(settings.jwt_private_key_path).read_text(encoding='utf-8')
+            except Exception:
+                private_key = None
         if not private_key:
             # フォールバック
             algorithm = 'HS256'
