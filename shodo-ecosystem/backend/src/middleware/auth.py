@@ -13,6 +13,7 @@ import logging
 
 from ..core.config import settings
 from ..services.database import get_db_session
+from ..services.auth.jti_manager import JTIRevocationStore
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,17 @@ async def verify_jwt_token(token: str) -> Optional[TokenClaims]:
             return None
         
         # JTI（JWT ID）の検証 - リプレイ攻撃防止
-        # TODO: Redis/DBでJTIのブラックリストチェック
+        # 失効ストアでブラックリストを確認
+        try:
+            rev_store = JTIRevocationStore()
+            if await rev_store.is_revoked(claims.jti):
+                logger.warning("JWT JTI is revoked", extra={"jti": claims.jti})
+                return None
+        except Exception as e:
+            # 失効チェック失敗時は保守的に拒否（本番）、開発は許容
+            if settings.is_production():
+                logger.error(f"JTI revocation check failed: {e}")
+                return None
         
         return claims
         

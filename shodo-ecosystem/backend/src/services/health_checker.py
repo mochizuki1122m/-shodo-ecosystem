@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from ..core.config import settings
 from .database import get_db_engine, get_redis
+from ..services.auth.lpr_service import get_lpr_service, LPRScope, DeviceFingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +325,7 @@ class HealthChecker:
             self.check_database(),
             self.check_redis(),
             self.check_ai_server(),
+            self.check_lpr_system(),
             self.check_system_resources(),
             return_exceptions=True
         )
@@ -375,6 +377,49 @@ class HealthChecker:
             "version": settings.app_version,
             "environment": settings.environment
         }
+
+    async def check_lpr_system(self) -> ComponentHealth:
+        """LPRシステムの実測ヘルスチェック"""
+        start_time = time.time()
+        try:
+            svc = await get_lpr_service()
+            # 軽量検証: 開発用のダミースコープで署名/検証ルートを通す
+            fp = DeviceFingerprint(user_agent="health-check", accept_language="ja-JP")
+            scope = LPRScope(method="GET", url_pattern="/health")
+            # 署名→検証を最小限で通せるなら healthy とみなす
+            # 注意: 本実装では issue/verify API を直接叩かず、サービス内部の基本関数を呼ぶ
+            user_id = "system-health"
+            issued = await svc.issue_token(
+                service="health",
+                purpose="liveness",
+                scopes=[scope],
+                device_fingerprint=fp,
+                user_id=user_id,
+                consent=True
+            )
+            token = issued.get("token")
+            ok = False
+            if token:
+                result = await svc.verify_token(token, fp, scope)
+                ok = bool(result.get("valid"))
+            response_time = (time.time() - start_time) * 1000
+            return ComponentHealth(
+                name="lpr_system",
+                status=HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY,
+                response_time_ms=response_time,
+                details={"issue_ok": bool(token), "verify_ok": ok},
+                last_checked=time.time()
+            )
+        except Exception as e:
+            response_time = (time.time() - start_time) * 1000
+            return ComponentHealth(
+                name="lpr_system",
+                status=HealthStatus.UNHEALTHY,
+                response_time_ms=response_time,
+                details={"error": str(e)},
+                error=str(e),
+                last_checked=time.time()
+            )
     
     def _generate_summary(self, components: Dict[str, Any]) -> Dict[str, Any]:
         """ヘルスチェック結果のサマリーを生成"""
