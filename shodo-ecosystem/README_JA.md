@@ -374,6 +374,17 @@ curl http://localhost/health
 - セキュリティイベントログ記録
 - エラー追跡と集約
 
+### 本番運用の重要ポイント（セキュリティ/可用性）
+
+- Redis 必須（LPRとレート制限）: 本番ではメモリフォールバックは無効化されています。`REDIS_URL` を必ず設定してください。
+- レート制限のfail-open禁止: `RATE_LIMIT_FAIL_OPEN=false` を厳守。Redis不可時は429で明示的に拒否します。
+- LPRのフォールバック禁止: Redisが無い場合はLPR発行/検証/失効を停止します。事前に依存性をヘルスチェックで担保してください。
+- 監査ログの中央集約: 本番では Redis Streams (`audit:stream`) に出力します。外部SIEM/ログ基盤への連携を行ってください。
+- 鍵とシークレット: `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY`、`SECRET_KEY`、`ENCRYPTION_KEY`、`AUDIT_SIGNING_KEY` は強固な値を必ず設定。既定値のままでは起動に失敗します。
+- CORS/TrustedHostの厳格化: 本番ではワイルドカードを禁止。必ず許可オリジン/ホストを明示してください。
+- CSRF: `CSRF_COOKIE_SECURE=true`。Double Submit Cookie パターンを実装済み。
+- 可視ログイン: 本番は強制 headless。セッションは暗号化保存され、短TTLです。
+
 ## セキュリティ機能
 
 ### LPR（Limited Proxy Rights）システム

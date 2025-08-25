@@ -203,6 +203,15 @@ class Settings(BaseSettings):
             # トレーシング有効時はOTLPエンドポイント必須
             if self.tracing_enabled and not self.otlp_endpoint:
                 raise ValueError("OTLP_ENDPOINT is required when TRACING_ENABLED is true in production")
+            # Redis必須（LPR・RateLimitで使用）
+            if not self.redis_url:
+                raise ValueError("REDIS_URL is required in production")
+            # レート制限のfail-openは禁止
+            if getattr(self, 'rate_limit_fail_open', False):
+                raise ValueError("RATE_LIMIT_FAIL_OPEN must be false in production")
+            # 監査キーがデフォルトのままは禁止
+            if self.audit_signing_key == "change-this-audit-key-in-production":
+                raise ValueError("AUDIT_SIGNING_KEY must be set to a secure value in production")
 
     class Config:
         env_file = ".env"

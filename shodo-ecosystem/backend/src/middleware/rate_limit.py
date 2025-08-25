@@ -234,7 +234,12 @@ class RateLimiter:
             # Redis接続をリセットして次回再試行
             self.redis = None
             self._redis_checked = False
-            # フォールバック to メモリ
+            # 本番ではフォールバック禁止（fail-openが有効でない限り）
+            from ..core.config import settings as _settings3
+            if _settings3.is_production() and not settings.rate_limit_fail_open:
+                logger.error("Rate limit denied due to Redis error in production and fail_open disabled")
+                return False, {"retry_after": 60}
+            # 開発/テストではメモリにフォールバック
             logger.info("Falling back to memory-based rate limiting due to Redis error")
             return await self._check_memory_limit(client_id, path, limits)
     
@@ -307,6 +312,11 @@ class RateLimiter:
         if await self._ensure_redis_connection():
             return await self._check_redis_limit(client_id, path, limits)
         else:
+            # 本番ではフォールバック禁止（fail-openが有効でない限り）
+            if settings.is_production() and not settings.rate_limit_fail_open:
+                logger.error("Rate limiting unavailable: Redis not connected in production and fail_open disabled")
+                return False, {"retry_after": 60}
+            # 開発/テストではメモリにフォールバック
             return await self._check_memory_limit(client_id, path, limits)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

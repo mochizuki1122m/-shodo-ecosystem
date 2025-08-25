@@ -12,6 +12,7 @@ from enum import Enum
 import structlog
 
 from ...core.config import settings
+from ...services.database import get_redis
 
 logger = structlog.get_logger()
 
@@ -65,6 +66,7 @@ class AuditLogger:
         self.storage = storage_backend
         self.signing_key = settings.secret_key.get_secret_value().encode()
         self.chain_hash = None  # For hash chaining
+        self.redis = get_redis()
     
     async def log(
         self,
@@ -359,12 +361,31 @@ class AuditLogger:
     
     async def _store_entry(self, entry: Dict):
         """Store audit entry"""
+        # 優先: Redis Streams（可用性と集約に優れる）
+        try:
+            if self.redis and settings.is_production():
+                # XADD audit:stream * {json}
+                # 監査イベントはJSONとして1フィールドに格納
+                payload = json.dumps(entry)
+                await self.redis.xadd("audit:stream", {"event": payload})
+                return
+        except Exception:
+            # Redisに失敗した場合は後段にフォールバック
+            pass
+        
         if self.storage:
             await self.storage.store(entry)
-        else:
-            # Fallback to file
-            with open("/var/log/shodo/audit.jsonl", "a") as f:
-                f.write(json.dumps(entry) + "\n")
+            return
+        
+        # 最終フォールバック: ローテーション可能なファイルに追記
+        # 本番ではlogrotate等で圧縮・保管。権限は外部で管理。
+        try:
+            with open("/var/log/shodo/audit.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            # 権限等の問題で書けない場合は標準出力に出す
+            logger.error("Failed to persist audit log to file; emitting to stdout")
+            print(json.dumps(entry))
     
     async def _send_to_siem(self, entry: Dict):
         """Send to SIEM system"""
