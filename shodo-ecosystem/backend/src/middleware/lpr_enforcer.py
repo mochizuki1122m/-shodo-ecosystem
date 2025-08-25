@@ -31,7 +31,6 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
     - Verify token signature and expiration
     - Check revocation status
     - Verify device fingerprint
-    - Enforce rate limits
     - Add human speed jitter
     - Mask sensitive response data
     - Audit all operations
@@ -60,7 +59,6 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
         self.lpr_service: Optional[LPRService] = None
-        self.rate_limits = {}  # In-memory rate limiting
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request through LPR enforcement"""
@@ -252,41 +250,7 @@ class LPREnforcerMiddleware(BaseHTTPMiddleware):
             canvas_hash=request.headers.get("X-Canvas-Hash")
         )
     
-    async def _check_rate_limit(self, jti: str, request: Request) -> bool:
-        """Check rate limits for the token"""
-        now = time.time()
-        key = f"{jti}:{request.url.path}"
-        
-        if key not in self.rate_limits:
-            self.rate_limits[key] = {
-                "requests": [],
-                "window_start": now
-            }
-        
-        limits = self.rate_limits[key]
-        
-        # Clean old requests (outside 60 second window)
-        limits["requests"] = [
-            req_time for req_time in limits["requests"]
-            if now - req_time < 60
-        ]
-        
-        # Check limit (100 requests per minute)
-        if len(limits["requests"]) >= 100:
-            return False
-        
-        # Check burst limit (10 requests per second)
-        recent_requests = [
-            req_time for req_time in limits["requests"]
-            if now - req_time < 1
-        ]
-        if len(recent_requests) >= 10:
-            return False
-        
-        # Add current request
-        limits["requests"].append(now)
-        
-        return True
+    # Note: レート制限は `middleware/rate_limit.py` に一本化。ここでは実施しない。
     
     async def _should_add_jitter(self, jti: str) -> bool:
         """Determine if human speed jitter should be added"""

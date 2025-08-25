@@ -65,8 +65,9 @@ services:
     volumes:
       - ./ai-server/models:/models
       - ./ai-server/logs:/logs
-    ports:
-      - "8001:8001"
+    # 本番では外部公開しない（バックエンドからの内部通信のみ）
+    # ports:
+    #   - "8001:8001"
     deploy:
       resources:
         limits:
